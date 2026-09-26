@@ -1,7 +1,10 @@
 package com.geanbrandao.raizes.api.config
 
+import com.geanbrandao.raizes.api.domain.CanalPedido
 import com.geanbrandao.raizes.api.domain.Perfil
 import com.geanbrandao.raizes.api.domain.StatusPedido
+import com.geanbrandao.raizes.api.domain.TipoCampanha
+import com.geanbrandao.raizes.api.repository.CampanhaRepository
 import com.geanbrandao.raizes.api.repository.CardapioUnidadeRepository
 import com.geanbrandao.raizes.api.repository.EstoqueRepository
 import com.geanbrandao.raizes.api.repository.ProdutoRepository
@@ -11,6 +14,7 @@ import org.junit.jupiter.api.Test
 import org.springframework.beans.factory.annotation.Autowired
 import org.springframework.boot.test.context.SpringBootTest
 import org.springframework.test.context.ActiveProfiles
+import java.time.LocalDate
 import java.util.UUID
 import kotlin.test.assertEquals
 import kotlin.test.assertNotNull
@@ -43,6 +47,9 @@ class SchemaMigrationTest {
 
     @Autowired
     lateinit var estoqueRepository: EstoqueRepository
+
+    @Autowired
+    lateinit var campanhaRepository: CampanhaRepository
 
     private val unidadeRecife = UUID.fromString("10000000-0000-0000-0000-000000000001")
     private val unidadeCaruaru = UUID.fromString("10000000-0000-0000-0000-000000000002")
@@ -119,6 +126,51 @@ class SchemaMigrationTest {
         val sazonais = produtoRepository.findAll().filter { it.sazonal }
         assertEquals(1, sazonais.size)
         assertEquals("Canjica junina", sazonais.first().nome)
+    }
+
+    @Test
+    fun `seed cria campanhas com os tres recortes de segmentacao`() {
+        val campanhas = campanhaRepository.findAllByAtivaTrue()
+        assertEquals(3, campanhas.size)
+
+        // Uma por canal, uma por unidade, uma por faixa etaria.
+        assertEquals(1, campanhas.count { it.canalPedido == CanalPedido.APP })
+        assertEquals(1, campanhas.count { it.unidadeId == unidadeCaruaru })
+        assertEquals(1, campanhas.count { it.exigeConsentimentoDePerfilamento })
+    }
+
+    @Test
+    fun `campanha so vale dentro da vigencia`() {
+        val junina = campanhaRepository.findById(
+            UUID.fromString("50000000-0000-0000-0000-000000000003"),
+        ).orElseThrow()
+
+        assertEquals(TipoCampanha.PONTOS_EXTRAS, junina.tipo)
+        assertTrue(junina.estaVigente(LocalDate.of(2026, 6, 15)))
+        assertTrue(!junina.estaVigente(LocalDate.of(2026, 7, 1)))
+        assertTrue(!junina.estaVigente(LocalDate.of(2026, 5, 31)))
+    }
+
+    @Test
+    fun `campanha candidata respeita unidade e canal`() {
+        // Pedido pelo app em Recife: pega a campanha do app (rede toda),
+        // mas nao a de Caruaru.
+        val candidatas = campanhaRepository.buscarCandidatas(
+            unidadeRecife,
+            CanalPedido.APP,
+            LocalDate.of(2026, 3, 10),
+        )
+        assertTrue(candidatas.any { it.nome == "Primeira compra no app" })
+        assertTrue(candidatas.none { it.nome == "Cafe da manhã Caruaru" })
+
+        // Pedido no balcao de Caruaru: pega a local, nao a exclusiva de app.
+        val emCaruaru = campanhaRepository.buscarCandidatas(
+            unidadeCaruaru,
+            CanalPedido.BALCAO,
+            LocalDate.of(2026, 3, 10),
+        )
+        assertTrue(emCaruaru.any { it.nome == "Cafe da manhã Caruaru" })
+        assertTrue(emCaruaru.none { it.nome == "Primeira compra no app" })
     }
 
     @Test
