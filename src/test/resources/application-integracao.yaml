@@ -1,7 +1,9 @@
-# Perfil usado so pelo teste que confere se as migrations e as entidades batem.
+# Perfil dos testes de integracao: H2 em modo PostgreSQL com as migrations reais
+# aplicadas pelo Flyway, inclusive o seed. Assim os testes exercitam o mesmo
+# schema e os mesmos dados que a API usa de verdade.
 spring:
   datasource:
-    url: jdbc:h2:mem:schemacheck;MODE=PostgreSQL;DATABASE_TO_LOWER=TRUE;DEFAULT_NULL_ORDERING=HIGH
+    url: jdbc:h2:mem:integracao;MODE=PostgreSQL;DATABASE_TO_LOWER=TRUE;DEFAULT_NULL_ORDERING=HIGH
     driver-class-name: org.h2.Driver
     username: sa
     password:

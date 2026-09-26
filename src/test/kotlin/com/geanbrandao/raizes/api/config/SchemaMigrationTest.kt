@@ -30,7 +30,7 @@ import kotlin.test.assertTrue
  * De quebra confere o seed, que a coleção de testes da API depende para rodar.
  */
 @SpringBootTest
-@ActiveProfiles("schema-check")
+@ActiveProfiles("integracao")
 class SchemaMigrationTest {
 
     @Autowired
