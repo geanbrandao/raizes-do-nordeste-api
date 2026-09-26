@@ -1,0 +1,22 @@
+# Perfil usado so pelo teste que confere se as migrations e as entidades batem.
+spring:
+  datasource:
+    url: jdbc:h2:mem:schemacheck;MODE=PostgreSQL;DATABASE_TO_LOWER=TRUE;DEFAULT_NULL_ORDERING=HIGH
+    driver-class-name: org.h2.Driver
+    username: sa
+    password:
+  jpa:
+    hibernate:
+      # O ponto do teste: o Hibernate confere as entidades contra o schema que o
+      # Flyway criou e quebra se faltar coluna ou o nome estiver diferente.
+      ddl-auto: validate
+    show-sql: false
+    open-in-view: false
+  flyway:
+    enabled: true
+    locations: classpath:db/migration
+
+jwt:
+  secret: segredo-de-teste-comprido-o-bastante-para-hmac-sha256-funcionar
+  access-token-expiration: 900000
+  refresh-token-expiration: 604800000
