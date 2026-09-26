@@ -1,0 +1,21 @@
+spring:
+  datasource:
+    url: ${SPRING_DATASOURCE_URL:jdbc:postgresql://localhost:5432/raizes}
+    username: ${POSTGRES_USER:raizes_user}
+    password: ${POSTGRES_PASSWORD:raizes_pass}
+    driver-class-name: org.postgresql.Driver
+  jpa:
+    show-sql: true
+
+jwt:
+  secret: ${JWT_SECRET:dev-only-CHANGE-ME-precisa-de-32-bytes-no-minimo}
+  access-token-expiration: 900000      # 15 minutos em ms
+  refresh-token-expiration: 604800000  # 7 dias em ms
+
+rate-limit:
+  capacity: 300   # folgado em dev para nao atrapalhar teste manual
+  refill-minutes: 1
+
+logging:
+  level:
+    com.geanbrandao.raizes: DEBUG

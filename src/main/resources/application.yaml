@@ -1,0 +1,51 @@
+spring:
+  application:
+    name: raizes-api
+  datasource:
+    hikari:
+      maximum-pool-size: 10
+      minimum-idle: 2
+      # Falha rapido em vez de pendurar o request quando o pool nao entrega conexao.
+      connection-timeout: 10000
+      validation-timeout: 3000
+  jpa:
+    hibernate:
+      # O schema e do Flyway. O Hibernate so confere se bate com as entidades.
+      ddl-auto: validate
+    show-sql: false
+    open-in-view: false
+  flyway:
+    enabled: true
+    locations: classpath:db/migration
+  jackson:
+    default-property-inclusion: non_null
+
+springdoc:
+  swagger-ui:
+    path: /swagger-ui.html
+    operations-sorter: method
+    tags-sorter: alpha
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info
+  endpoint:
+    health:
+      show-details: when-authorized
+
+app:
+  # Fuso usado para decidir que dia e "hoje" em regras de negocio e relatorios.
+  timezone: ${APP_TIMEZONE:America/Sao_Paulo}
+  fidelidade:
+    # Quantos reais de pedido pago valem 1 ponto (RF20).
+    reais-por-ponto: 1
+  pagamento:
+    # Gateway simulado: chance de recusa nao e aleatoria, e determinada por regra
+    # deterministica no servico, para os testes serem reproduziveis (RN14).
+    mock-timeout-ms: 2000
+
+rate-limit:
+  capacity: 60
+  refill-minutes: 1
