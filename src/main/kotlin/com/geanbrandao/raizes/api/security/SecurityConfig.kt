@@ -110,6 +110,19 @@ class SecurityConfig(
                     .requestMatchers(HttpMethod.POST, "/unidades").hasRole(Perfil.ADMIN.name)
                     .requestMatchers(HttpMethod.PUT, "/unidades/*").hasRole(Perfil.ADMIN.name)
 
+                    // Pedido: cliente e atendente criam. O resto da visibilidade e das
+                    // transições e decidido no service, que conhece o dono do pedido e
+                    // a unidade dele.
+                    .requestMatchers(HttpMethod.POST, "/pedidos")
+                    .hasAnyRole(Perfil.CLIENTE.name, Perfil.ATENDENTE.name, Perfil.GERENTE.name, Perfil.ADMIN.name)
+                    .requestMatchers(HttpMethod.PATCH, "/pedidos/*/status")
+                    .hasAnyRole(
+                        Perfil.ATENDENTE.name,
+                        Perfil.COZINHA.name,
+                        Perfil.GERENTE.name,
+                        Perfil.ADMIN.name,
+                    )
+
                     // Catalogo da rede: gerente ajuda a manter, mas so admin inativa.
                     .requestMatchers(HttpMethod.POST, "/produtos")
                     .hasAnyRole(Perfil.ADMIN.name, Perfil.GERENTE.name)

@@ -65,9 +65,14 @@ class PedidoEntity(
      *
      * Cascade ALL porque item não existe sozinho, so faz sentido dentro do pedido.
      * orphanRemoval liga o ciclo de vida dos dois.
+     *
+     * O `nullable = false` no JoinColumn não e enfeite. Sem ele, o Hibernate insere a
+     * linha do item com pedido_id nulo e so depois roda um UPDATE para preencher a
+     * chave — o que estoura na hora, porque a coluna e NOT NULL no banco. Declarando
+     * que a chave não aceita nulo, ele passa a incluir pedido_id no proprio INSERT.
      */
     @OneToMany(cascade = [CascadeType.ALL], orphanRemoval = true, fetch = FetchType.EAGER)
-    @JoinColumn(name = "pedido_id")
+    @JoinColumn(name = "pedido_id", nullable = false)
     val itens: MutableList<ItemPedidoEntity> = mutableListOf(),
 
     @Column(name = "criado_em", nullable = false, updatable = false)
