@@ -150,21 +150,32 @@ Esperado (14 rotas):
 | Tapioca de queijo coalho | `30000000-0000-0000-0000-000000000001` |
 | Bolo de rolo (saldo baixo: 2) | `30000000-0000-0000-0000-000000000006` |
 
-### 4.0 Preparar os tokens
+### 4.0 Preparar os tokens — rode isto primeiro
 
-Rode uma vez; as seções seguintes usam essas variáveis.
+> **Obrigatório antes das seções 4.2 em diante e da seção 5.** As variáveis vivem só na
+> sessão do terminal em que foram definidas: se você abrir outra aba, ou o access token
+> passar dos 15 minutos de validade, rode este bloco de novo.
 
 ```bash
 login() { curl -s -X POST localhost:8080/auth/login -H 'Content-Type: application/json' \
-  -d "{\"email\":\"$1\",\"senha\":\"Senha@123\"}" | jq -r .accessToken; }
+  -d "{\"email\":\"$1\",\"senha\":\"Senha@123\"}" | jq -r '.accessToken // empty'; }
+
 TOKEN=$(login cliente@exemplo.com)
 ADMIN=$(login admin@raizes.com.br)
 GERENTE=$(login gerente.recife@raizes.com.br)
 RECIFE=10000000-0000-0000-0000-000000000001
 CARUARU=10000000-0000-0000-0000-000000000002
 TAPIOCA=30000000-0000-0000-0000-000000000001
-echo "tokens capturados"
+
+# Confere na hora, em vez de deixar o erro aparecer tres comandos depois.
+for nome in TOKEN ADMIN GERENTE; do
+  case $nome in TOKEN) v=$TOKEN;; ADMIN) v=$ADMIN;; GERENTE) v=$GERENTE;; esac
+  if [ -n "$v" ]; then echo "  $nome ok"; else echo "  $nome FALHOU - a API esta no ar?"; fi
+done
 ```
+
+Se algum sair como `FALHOU`, pare aqui: ou a API não subiu, ou o banco está sem o seed.
+Confira com `curl -s localhost:8080/actuator/health`.
 
 ---
 
@@ -255,6 +266,8 @@ Operador nasce já verificado — foi criado por alguém de confiança, então l
 
 ### 4.3 Unidades
 
+> Precisa das variáveis da seção **4.0**.
+
 **Listagem pública e paginada (200)**
 
 ```bash
@@ -290,6 +303,8 @@ Repare que a UF volta em maiúscula mesmo enviada minúscula — normalização 
 ---
 
 ### 4.4 Produtos
+
+> Precisa das variáveis da seção **4.0**.
 
 **Catálogo da rede (200, exige token)**
 
@@ -333,6 +348,8 @@ verdade quebraria todo pedido antigo que aponta para ele.
 ---
 
 ### 4.5 Cardápio por unidade
+
+> Precisa das variáveis da seção **4.0**.
 
 Esta é a parte que mostra na prática que **nem toda loja da rede é igual**.
 
@@ -383,6 +400,8 @@ O item some para o cliente e continua visível para quem administra a loja.
 ---
 
 ## 5. Erros
+
+> Precisa das variáveis da seção **4.0**.
 
 Todos devolvem o mesmo formato: `error`, `message`, `details[]`, `timestamp`, `path`,
 `requestId`.
@@ -490,4 +509,6 @@ verdade, subir em `prod` registra um aviso no startup e os códigos não chegam 
 | `Migration checksum mismatch` | Migration já aplicada foi editada | `docker compose down -v` e subir de novo |
 | API sobe mas toda rota dá 401 | Esperado nas rotas protegidas | Fazer login e mandar o `Authorization: Bearer` |
 | Rota nova dá 401 sem motivo | *Default deny*: rota não liberada no `SecurityConfig` | Liberar explicitamente, se for para ser pública |
+| `jq: Cannot iterate over null` | A resposta é o envelope de **erro**, não o de dados — quase sempre `$TOKEN` vazio ou expirado | Rodar a seção **4.0**. Para ver o que voltou de verdade: repita o curl com `-i` e sem o filtro do `jq` |
+| `jq: Cannot index number with string` | Mesma causa da linha acima | Idem |
 | Build do container muito lento | Primeira vez baixa Gradle e dependências | Normal; as próximas usam cache |
