@@ -11,7 +11,7 @@ Vira a base da seção de execução do README na entrega final.
 Pré-requisitos já conferidos nesta máquina: Docker Desktop instalado, Java 17,
 `jq` disponível, portas 8080 e 5432 livres.
 
-**Estado atual:** 5 controllers, 20 operações HTTP, 98 testes automatizados.
+**Estado atual:** 6 controllers, 23 operações HTTP, 124 testes automatizados.
 
 ---
 
@@ -21,7 +21,7 @@ Pré-requisitos já conferidos nesta máquina: Docker Desktop instalado, Java 17
 cd ~/Documents/faculdade/TCC/raizes-do-nordeste-api && ./gradlew test
 ```
 
-Esperado: `BUILD SUCCESSFUL`, 98 testes, 0 falhas.
+Esperado: `BUILD SUCCESSFUL`, 124 testes, 0 falhas.
 
 Os testes usam H2 em modo PostgreSQL com as migrations reais aplicadas pelo Flyway.
 Provam a coerência entre migrations, entidades e seed — mas **não** substituem uma
@@ -54,7 +54,7 @@ Deixe esse terminal aberto mostrando o log e use outro para os comandos seguinte
 | Sinal | Significa |
 |---|---|
 | `database system is ready to accept connections` | Postgres no ar |
-| `Successfully applied 16 migrations` | Flyway criou o schema e aplicou o seed |
+| `Successfully applied 17 migrations` | Flyway criou o schema e aplicou o seed |
 | `Codigo de verificação FIXO ligado (258369)` | Perfil dev ativo, código previsível |
 | `Tomcat started on port 8080` | API no ar |
 | `Started RaizesApiApplication` | Subiu inteira |
@@ -86,7 +86,7 @@ docker compose exec postgres psql -U raizes_user -d raizes \
   -c "SELECT version, description, success FROM flyway_schema_history ORDER BY installed_rank;"
 ```
 
-Esperado: 16 linhas, todas com `success = t`.
+Esperado: 17 linhas, todas com `success = t`.
 
 ```bash
 docker compose exec postgres psql -U raizes_user -d raizes \
@@ -115,7 +115,7 @@ Conferência de que a documentação reflete as rotas reais:
 curl -s localhost:8080/v3/api-docs | jq -r '.paths | keys[]'
 ```
 
-Esperado (14 rotas):
+Esperado (17 rotas):
 
 ```
 /auth/login          /auth/logout         /auth/refresh
@@ -124,6 +124,8 @@ Esperado (14 rotas):
 /unidades            /unidades/{unidadeId}
 /produtos            /produtos/{produtoId}
 /unidades/{unidadeId}/cardapio            /unidades/{unidadeId}/cardapio/{produtoId}
+/unidades/{unidadeId}/estoque             /unidades/{unidadeId}/estoque/movimentacoes
+/unidades/{unidadeId}/estoque/{produtoId}/movimentacoes
 ```
 
 ---
@@ -399,6 +401,69 @@ O item some para o cliente e continua visível para quem administra a loja.
 
 ---
 
+### 4.6 Estoque
+
+> Precisa das variáveis da seção **4.0**.
+
+Estoque é informação da operação, não da vitrine: cliente não tem acesso nenhum.
+
+**Saldo da unidade (200)**
+
+```bash
+curl -s "localhost:8080/unidades/$RECIFE/estoque?limit=100" -H "Authorization: Bearer $GERENTE" \
+  | jq '[.conteudo[] | {nome,saldoAtual,abaixoDoMinimo}]'
+```
+
+O Bolo de rolo vem com `saldoAtual: 2` e `abaixoDoMinimo: true` — o seed deixa esse item
+propositalmente baixo, para dar para testar o 409 de estoque insuficiente sem preparar nada.
+
+**Entrada soma ao saldo (201)**
+
+```bash
+BOLO=30000000-0000-0000-0000-000000000006
+curl -s -X POST localhost:8080/unidades/$RECIFE/estoque/movimentacoes \
+  -H "Authorization: Bearer $GERENTE" -H 'Content-Type: application/json' \
+  -d "{\"produtoId\":\"$BOLO\",\"tipo\":\"ENTRADA\",\"quantidade\":20,\"motivo\":\"Recebimento do fornecedor\"}" \
+  | jq '{tipo,quantidade,saldoApos,motivo}'
+```
+
+Esperado: `saldoApos: 22` (2 + 20).
+
+**Saída subtrai (201)**
+
+```bash
+curl -s -X POST localhost:8080/unidades/$RECIFE/estoque/movimentacoes \
+  -H "Authorization: Bearer $GERENTE" -H 'Content-Type: application/json' \
+  -d "{\"produtoId\":\"$TAPIOCA\",\"tipo\":\"SAIDA\",\"quantidade\":15}" | jq '{tipo,saldoApos}'
+```
+
+Esperado: `saldoApos: 35` (50 − 15).
+
+**Ajuste define o saldo absoluto (201)**
+
+```bash
+curl -s -X POST localhost:8080/unidades/$RECIFE/estoque/movimentacoes \
+  -H "Authorization: Bearer $GERENTE" -H 'Content-Type: application/json' \
+  -d "{\"produtoId\":\"$TAPIOCA\",\"tipo\":\"AJUSTE\",\"quantidade\":7,\"motivo\":\"Contagem de inventario\"}" \
+  | jq '{tipo,quantidade,saldoApos}'
+```
+
+Em `AJUSTE` a quantidade **é** o saldo que passa a valer — é o caso da contagem de
+inventário, em que a loja conta a prateleira e informa o que realmente tem. Zero é
+aceito aqui (contagem pode dar zero), mas recusado em `ENTRADA` e `SAIDA`.
+
+**Histórico do produto (200, só GERENTE e ADMIN)**
+
+```bash
+curl -s "localhost:8080/unidades/$RECIFE/estoque/$TAPIOCA/movimentacoes" \
+  -H "Authorization: Bearer $GERENTE" | jq '[.conteudo[] | {tipo,quantidade,saldoApos,motivo,criadoEm}]'
+```
+
+Cada linha guarda o saldo que ficou depois dela, então dá para conferir o histórico
+sem recalcular nada.
+
+---
+
 ## 5. Erros
 
 > Precisa das variáveis da seção **4.0**.
@@ -421,6 +486,9 @@ Todos devolvem o mesmo formato: `error`, `message`, `details[]`, `timestamp`, `p
 | 11 | UUID mal formado | 400 `REQUISICAO_INVALIDA` |
 | 12 | Paginação inválida | 400 `REQUISICAO_INVALIDA` |
 | 13 | Código de verificação errado | 400 `CODIGO_VERIFICACAO_INVALIDO` |
+| 14 | Saída maior que o saldo | 409 `ESTOQUE_INSUFICIENTE` |
+| 15 | Cliente acessando estoque | 403 `SEM_PERMISSAO` |
+| 16 | Entrada de quantidade zero | 422 `VALIDACAO` |
 
 ```bash
 p() { printf "\n--- %s\n" "$1"; }
@@ -449,6 +517,13 @@ p "11. uuid mal formado";    curl -s localhost:8080/unidades/isso-nao-e-uuid | j
 p "12. paginacao invalida";  curl -s "localhost:8080/unidades?page=0&limit=999" | jq -c '{error,details}'
 p "13. codigo errado";       curl -s -X POST localhost:8080/usuarios/verificacao -H 'Content-Type: application/json' \
   -d '{"email":"joana@exemplo.com","codigo":"000000"}' | jq -c '{error}'
+p "14. estoque insuficiente"; curl -s -X POST localhost:8080/unidades/$RECIFE/estoque/movimentacoes \
+  -H "Authorization: Bearer $GERENTE" -H 'Content-Type: application/json' \
+  -d '{"produtoId":"30000000-0000-0000-0000-000000000006","tipo":"SAIDA","quantidade":999}' | jq -c '{error,details}'
+p "15. cliente no estoque";  curl -s "localhost:8080/unidades/$RECIFE/estoque" -H "Authorization: Bearer $TOKEN" | jq -c '{error,message}'
+p "16. entrada zero";        curl -s -X POST localhost:8080/unidades/$RECIFE/estoque/movimentacoes \
+  -H "Authorization: Bearer $GERENTE" -H 'Content-Type: application/json' \
+  -d "{\"produtoId\":\"$TAPIOCA\",\"tipo\":\"ENTRADA\",\"quantidade\":0}" | jq -c '{error,details}'
 echo
 ```
 
