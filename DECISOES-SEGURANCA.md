@@ -105,7 +105,7 @@ Os usuários do seed já nascem com `email_verificado = true`, para o fluxo prin
 ## 4. Envio de e-mail: porta definida, integração adiada
 
 O sistema depende da interface `EnviadorDeEmail`, não de um provedor. A única
-implementação hoje é `EnviadorDeEmailLog`, que escreve o código no log.
+implementação hoje é `EnviadorDeEmailLog`.
 
 Isso é decisão consciente de escopo. Integrar com Resend, SES ou SMTP exigiria chave de
 API, domínio verificado e custo, e não acrescentaria nada ao que este trabalho se propõe
@@ -113,10 +113,29 @@ a demonstrar — o fluxo de verificação em si já é real. Para produção, ba
 classe nova implementando `EnviadorDeEmail` e o registro dela como bean no lugar da
 atual, sem tocar em regra de negócio.
 
-Duas coisas que ficariam para essa etapa futura:
+### O código não vai para o log fora de desenvolvimento
 
+Log não é lugar de credencial: ele vai para agregador, fica retido por meses e é lido
+por gente que não deveria ver código de autenticação. Então o comportamento do
+`EnviadorDeEmailLog` depende do ambiente:
+
+| Ambiente | Registro no log |
+|---|---|
+| dev (`codigo-fixo` preenchido) | destinatário **e** código — o valor é fixo, público e documentado |
+| qualquer outro | só o destinatário; o valor é omitido por ser credencial |
+
+Fora de desenvolvimento o código fica, na prática, inacessível — e isso é proposital.
+Escancara que falta um provedor real, em vez de deixar a aplicação funcionando pela
+metade em silêncio. Um `WARN` sobe no startup dizendo exatamente isso.
+
+Há teste garantindo que o valor do código nunca aparece no log quando o modo fixo está
+desligado.
+
+### O que fica para essa etapa futura
+
+- implementar um `EnviadorDeEmail` real e registrá-lo como bean;
 - avisar o dono do endereço quando alguém tenta se cadastrar com um e-mail que já tem
-  conta (hoje isso só vira uma linha de log);
+  conta (hoje isso só vira uma linha de log, sem o valor);
 - rotina de limpeza dos códigos expirados.
 
 ---
@@ -146,3 +165,4 @@ Duas coisas que ficariam para essa etapa futura:
 | CAPTCHA no cadastro | Desproporcional para o contexto |
 | Bloqueio de conta após N logins falhos | Traria risco de negação de serviço contra usuário legítimo |
 | Refresh token com hash no banco | Token é opaco e aleatório; ganho pequeno frente ao custo |
+| Perfil `prod` | Não existe hoje. Só há `dev`, e o Dockerfile o fixa. Criar um perfil de produção sem provedor de e-mail, sem segredo gerenciado e sem observabilidade seria fachada |
