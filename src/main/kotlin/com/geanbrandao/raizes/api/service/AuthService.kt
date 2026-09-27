@@ -39,6 +39,13 @@ class AuthService(
      * E de proposito: se a API dissesse "e-mail não cadastrado", qualquer pessoa
      * conseguiria descobrir quem tem conta na rede so testando enderecos.
      *
+     * So que a mensagem igual não basta. Se o codigo saisse cedo quando o e-mail não
+     * existe, a resposta voltaria em poucos milissegundos, enquanto o caminho com
+     * e-mail valido gastaria os cerca de 60 ms do BCrypt. Essa diferença de tempo
+     * entrega a mesma informação que a mensagem escondia. Por isso, quando o usuario
+     * não e encontrado, a comparação roda mesmo assim contra um hash descartavel:
+     * os dois caminhos custam o mesmo.
+     *
      * @param request E-mail e senha.
      * @return Tokens e dados basicos do usuario.
      * @throws ApiException 401 se as credenciais não conferirem, ou se a conta estiver inativa.
@@ -47,7 +54,14 @@ class AuthService(
     fun login(request: LoginRequest): LoginResponse {
         val usuario = usuarioRepository.findByEmail(request.email.trim().lowercase())
 
-        if (usuario == null || !passwordEncoder.matches(request.senha, usuario.senhaHash)) {
+        // Roda a comparação nos dois casos, para o tempo de resposta não denunciar
+        // se o e-mail existe ou não.
+        val senhaConfere = passwordEncoder.matches(
+            request.senha,
+            usuario?.senhaHash ?: HASH_DESCARTAVEL,
+        )
+
+        if (usuario == null || !senhaConfere) {
             logger.warn("Tentativa de login sem sucesso")
             throw ApiException(
                 error = ErrorCodes.CREDENCIAIS_INVALIDAS,
@@ -138,4 +152,16 @@ class AuthService(
         message = "Refresh token invalido ou expirado. Faça login novamente.",
         status = HttpStatus.UNAUTHORIZED,
     )
+
+    companion object {
+        /**
+         * Hash BCrypt de uma senha que ninguem usa.
+         *
+         * Serve so para dar trabalho ao processador quando o e-mail não existe, para
+         * o tempo de resposta ficar igual ao do caminho normal. Nenhuma senha real
+         * casa com ele, então não abre brecha de autenticação.
+         */
+        private const val HASH_DESCARTAVEL =
+            "\$2a\$10\$N9qo8uLOickgx2ZMRZoMyeIjZAgcfl7p92ldGxad68LJZdL17lhWy"
+    }
 }
