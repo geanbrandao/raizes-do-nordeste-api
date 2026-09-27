@@ -1,10 +1,17 @@
 # Como subir e validar a API
 
 Passo a passo para levantar o ambiente e conferir que tudo funciona.
-Vira base da seção de execução do README na entrega final.
+Vira a base da seção de execução do README na entrega final.
+
+> **Organização deste documento.** As seções 4 e 5 espelham as pastas que a coleção
+> Postman/Insomnia vai ter (Auth, Usuários, Unidades, Produtos, Cardápio, … e Erros).
+> Cada etapa nova acrescenta uma subseção em **4. Fluxos por recurso** e alguns casos em
+> **5. Erros** — assim, montar a coleção na Etapa 10 vira transcrição.
 
 Pré-requisitos já conferidos nesta máquina: Docker Desktop instalado, Java 17,
 `jq` disponível, portas 8080 e 5432 livres.
+
+**Estado atual:** 5 controllers, 20 operações HTTP, 98 testes automatizados.
 
 ---
 
@@ -14,7 +21,7 @@ Pré-requisitos já conferidos nesta máquina: Docker Desktop instalado, Java 17
 cd ~/Documents/faculdade/TCC/raizes-do-nordeste-api && ./gradlew test
 ```
 
-Esperado: `BUILD SUCCESSFUL`, 62 testes, 0 falhas.
+Esperado: `BUILD SUCCESSFUL`, 98 testes, 0 falhas.
 
 Os testes usam H2 em modo PostgreSQL com as migrations reais aplicadas pelo Flyway.
 Provam a coerência entre migrations, entidades e seed — mas **não** substituem uma
@@ -48,6 +55,7 @@ Deixe esse terminal aberto mostrando o log e use outro para os comandos seguinte
 |---|---|
 | `database system is ready to accept connections` | Postgres no ar |
 | `Successfully applied 16 migrations` | Flyway criou o schema e aplicou o seed |
+| `Codigo de verificação FIXO ligado (258369)` | Perfil dev ativo, código previsível |
 | `Tomcat started on port 8080` | API no ar |
 | `Started RaizesApiApplication` | Subiu inteira |
 
@@ -71,8 +79,7 @@ docker compose exec postgres psql -U raizes_user -d raizes -c "\dt"
 Esperado: 16 tabelas (`unidades`, `usuarios`, `produtos`, `cardapio_unidade`, `estoque`,
 `movimentacoes_estoque`, `pedidos`, `itens_pedido`, `pagamentos`, `contas_fidelidade`,
 `movimentacoes_pontos`, `consentimentos`, `logs_auditoria`, `campanhas`, `refresh_tokens`,
-`tokens_verificacao_email`)
-mais a `flyway_schema_history`.
+`tokens_verificacao_email`) mais a `flyway_schema_history`.
 
 ```bash
 docker compose exec postgres psql -U raizes_user -d raizes \
@@ -92,30 +99,36 @@ Esperado: ADMIN 1, ATENDENTE 1, CLIENTE 1, COZINHA 1, GERENTE 2.
 
 ## 3. Swagger
 
-Abra no navegador:
-
 - **Swagger UI:** http://localhost:8080/swagger-ui.html
 - **OpenAPI cru:** http://localhost:8080/v3/api-docs
 
 Como testar por lá:
 
-1. `POST /auth/login` → **Try it out** → use `cliente@exemplo.com` / `Senha@123` → **Execute**
+1. `POST /auth/login` → **Try it out** → `cliente@exemplo.com` / `Senha@123` → **Execute**
 2. Copie o `accessToken` da resposta
 3. Botão **Authorize** no topo → cole o token → **Authorize**
-4. `GET /usuarios/me` → **Execute** → deve devolver 200 com os dados do cliente
+4. `GET /usuarios/me` → **Execute** → deve devolver 200
 
-Conferência rápida pelo terminal de que a documentação reflete as rotas reais:
+Conferência de que a documentação reflete as rotas reais:
 
 ```bash
 curl -s localhost:8080/v3/api-docs | jq -r '.paths | keys[]'
 ```
 
-Esperado: `/auth/login`, `/auth/logout`, `/auth/refresh`, `/usuarios`, `/usuarios/me`,
-`/usuarios/operadores`, `/usuarios/verificacao`, `/usuarios/verificacao/reenvio`.
+Esperado (14 rotas):
+
+```
+/auth/login          /auth/logout         /auth/refresh
+/usuarios            /usuarios/me         /usuarios/operadores
+/usuarios/verificacao                     /usuarios/verificacao/reenvio
+/unidades            /unidades/{unidadeId}
+/produtos            /produtos/{produtoId}
+/unidades/{unidadeId}/cardapio            /unidades/{unidadeId}/cardapio/{produtoId}
+```
 
 ---
 
-## 4. Fluxo pelo terminal
+## 4. Fluxos por recurso
 
 ### Usuários do seed (senha `Senha@123` para todos)
 
@@ -128,47 +141,85 @@ Esperado: `/auth/login`, `/auth/logout`, `/auth/refresh`, `/usuarios`, `/usuario
 | `gerente.caruaru@raizes.com.br` | GERENTE | Caruaru |
 | `cliente@exemplo.com` | CLIENTE | — |
 
-### 4.1 Login (200)
+### Ids fixos do seed
+
+| O quê | Id |
+|---|---|
+| Unidade Recife (COMPLETA) | `10000000-0000-0000-0000-000000000001` |
+| Unidade Caruaru (REDUZIDA) | `10000000-0000-0000-0000-000000000002` |
+| Tapioca de queijo coalho | `30000000-0000-0000-0000-000000000001` |
+| Bolo de rolo (saldo baixo: 2) | `30000000-0000-0000-0000-000000000006` |
+
+### 4.0 Preparar os tokens
+
+Rode uma vez; as seções seguintes usam essas variáveis.
 
 ```bash
-curl -s -X POST localhost:8080/auth/login \
-  -H 'Content-Type: application/json' \
+login() { curl -s -X POST localhost:8080/auth/login -H 'Content-Type: application/json' \
+  -d "{\"email\":\"$1\",\"senha\":\"Senha@123\"}" | jq -r .accessToken; }
+TOKEN=$(login cliente@exemplo.com)
+ADMIN=$(login admin@raizes.com.br)
+GERENTE=$(login gerente.recife@raizes.com.br)
+RECIFE=10000000-0000-0000-0000-000000000001
+CARUARU=10000000-0000-0000-0000-000000000002
+TAPIOCA=30000000-0000-0000-0000-000000000001
+echo "tokens capturados"
+```
+
+---
+
+### 4.1 Auth
+
+**Login (200)**
+
+```bash
+curl -s -X POST localhost:8080/auth/login -H 'Content-Type: application/json' \
   -d '{"email":"cliente@exemplo.com","senha":"Senha@123"}' | jq
 ```
 
 Esperado: `accessToken`, `refreshToken`, `tokenType: "Bearer"`, `expiresIn: 900`,
-e `usuario.perfil: "CLIENTE"`. Repare que **não** existe nenhum campo de senha na resposta.
+`usuario.perfil: "CLIENTE"`. Nenhum campo de senha aparece na resposta.
 
-Guarde o token numa variável:
-
-```bash
-TOKEN=$(curl -s -X POST localhost:8080/auth/login -H 'Content-Type: application/json' -d '{"email":"cliente@exemplo.com","senha":"Senha@123"}' | jq -r .accessToken) && echo "token capturado"
-```
-
-### 4.2 Perfil autenticado (200)
+**Perfil autenticado (200)**
 
 ```bash
 curl -s localhost:8080/usuarios/me -H "Authorization: Bearer $TOKEN" | jq
 ```
 
-### 4.3 Cadastro de cliente + verificação de e-mail (202 → 204 → 200)
+**Rotação do refresh token**
+
+```bash
+REFRESH=$(curl -s -X POST localhost:8080/auth/login -H 'Content-Type: application/json' \
+  -d '{"email":"cliente@exemplo.com","senha":"Senha@123"}' | jq -r .refreshToken)
+echo "--- primeira renovacao (espera um token):"
+curl -s -X POST localhost:8080/auth/refresh -H 'Content-Type: application/json' \
+  -d "{\"refreshToken\":\"$REFRESH\"}" | jq -r '.accessToken // .error'
+echo "--- reusando o mesmo refresh (espera TOKEN_INVALIDO):"
+curl -s -X POST localhost:8080/auth/refresh -H 'Content-Type: application/json' \
+  -d "{\"refreshToken\":\"$REFRESH\"}" | jq -r '.accessToken // .error'
+```
+
+O segundo tem que falhar. É a rotação funcionando: refresh usado não vale mais.
+
+---
+
+### 4.2 Usuários — cadastro e verificação de e-mail (202 → 204 → 200)
 
 O cadastro devolve **sempre a mesma resposta**, exista ou não o e-mail. A conta nasce
 pendente e só loga depois de confirmar o código.
 
-> **Em ambiente de desenvolvimento o código é sempre `258369`.** Ele também aparece no
-> log da aplicação (`docker compose logs app | grep VERIFICACAO`). Em produção a chave
+> **Em desenvolvimento o código é sempre `258369`.** Ele também aparece no log
+> (`docker compose logs app | grep VERIFICACAO`). Em produção a chave
 > `app.verificacao-email.codigo-fixo` fica vazia e o código passa a ser sorteado.
 
 ```bash
 # 1. cadastrar -> 202 generico
-curl -s -X POST localhost:8080/usuarios \
-  -H 'Content-Type: application/json' \
+curl -s -X POST localhost:8080/usuarios -H 'Content-Type: application/json' \
   -d '{"nome":"Joana Silva","email":"joana@exemplo.com","senha":"Senha@123"}' | jq
 
 # 2. tentar logar antes de confirmar -> 403 EMAIL_NAO_VERIFICADO
 curl -s -X POST localhost:8080/auth/login -H 'Content-Type: application/json' \
-  -d '{"email":"joana@exemplo.com","senha":"Senha@123"}' | jq
+  -d '{"email":"joana@exemplo.com","senha":"Senha@123"}' | jq -r '.accessToken // .error'
 
 # 3. confirmar com o codigo de dev -> 204
 curl -s -o /dev/null -w "%{http_code}\n" -X POST localhost:8080/usuarios/verificacao \
@@ -180,10 +231,7 @@ curl -s -X POST localhost:8080/auth/login -H 'Content-Type: application/json' \
   -d '{"email":"joana@exemplo.com","senha":"Senha@123"}' | jq -r '.accessToken // .error'
 ```
 
-### 4.4 Prova da proteção contra enumeração
-
-As duas chamadas abaixo — e-mail novo e e-mail que já existe — devolvem resposta
-**idêntica**, mesmo status e mesmo corpo:
+**Prova da proteção contra enumeração** — as duas respostas são idênticas:
 
 ```bash
 echo "--- email novo:"; curl -s -X POST localhost:8080/usuarios -H 'Content-Type: application/json' \
@@ -193,106 +241,197 @@ echo; echo "--- email existente:"; curl -s -X POST localhost:8080/usuarios -H 'C
 echo
 ```
 
+**Cadastro de operador (201, só ADMIN e GERENTE)**
+
+```bash
+curl -s -X POST localhost:8080/usuarios/operadores -H "Authorization: Bearer $ADMIN" \
+  -H 'Content-Type: application/json' \
+  -d "{\"nome\":\"Novo Atendente\",\"email\":\"novo.atendente@raizes.com.br\",\"senha\":\"Senha@123\",\"perfil\":\"ATENDENTE\",\"unidadeId\":\"$RECIFE\"}" | jq
+```
+
+Operador nasce já verificado — foi criado por alguém de confiança, então loga direto.
+
 ---
 
-## 5. Cenários de erro
+### 4.3 Unidades
 
-Cada um devolve o mesmo formato padrão: `error`, `message`, `details[]`, `timestamp`,
-`path`, `requestId`.
-
-### 401 — sem token
+**Listagem pública e paginada (200)**
 
 ```bash
-curl -s -i localhost:8080/usuarios/me | head -1 && curl -s localhost:8080/usuarios/me | jq
+curl -s "localhost:8080/unidades?page=1&limit=10" | jq
 ```
 
-Esperado: `401`, `error: "NAO_AUTENTICADO"`.
+Esperado: envelope com `conteudo`, `pagina: 1`, `limite: 10`, `totalItens: 2`,
+`totalPaginas: 1`, `primeira: true`, `ultima: true`.
 
-### 403 — perfil sem permissão
+**Paginação de verdade**
 
 ```bash
-curl -s -X POST localhost:8080/usuarios/operadores \
-  -H "Authorization: Bearer $TOKEN" \
+curl -s "localhost:8080/unidades?page=1&limit=1" | jq '{pagina,totalPaginas,ultima,itens:(.conteudo|length)}'
+curl -s "localhost:8080/unidades?page=2&limit=1" | jq '{pagina,ultima}'
+```
+
+**Detalhe (200)**
+
+```bash
+curl -s localhost:8080/unidades/$RECIFE | jq
+```
+
+**Cadastrar unidade (201, só ADMIN)**
+
+```bash
+curl -s -X POST localhost:8080/unidades -H "Authorization: Bearer $ADMIN" \
   -H 'Content-Type: application/json' \
-  -d '{"nome":"Novo Atendente","email":"novo@raizes.com.br","senha":"Senha@123","perfil":"ATENDENTE","unidadeId":"10000000-0000-0000-0000-000000000001"}' | jq
+  -d '{"nome":"Raizes Olinda","cidade":"Olinda","uf":"pe","tipoOperacao":"REDUZIDA"}' | jq
 ```
 
-Esperado: `403`, `error: "SEM_PERMISSAO"` — cliente não cadastra operador.
+Repare que a UF volta em maiúscula mesmo enviada minúscula — normalização no service.
 
-### 403 — gerente tentando mexer em outra unidade
+---
+
+### 4.4 Produtos
+
+**Catálogo da rede (200, exige token)**
 
 ```bash
-GERENTE=$(curl -s -X POST localhost:8080/auth/login -H 'Content-Type: application/json' -d '{"email":"gerente.recife@raizes.com.br","senha":"Senha@123"}' | jq -r .accessToken)
-curl -s -X POST localhost:8080/usuarios/operadores \
+curl -s "localhost:8080/produtos?page=1&limit=5" -H "Authorization: Bearer $TOKEN" | jq '{totalItens,totalPaginas,nomes:[.conteudo[].nome]}'
+```
+
+Esperado: `totalItens: 10`.
+
+**Filtro por categoria (aceita minúscula)**
+
+```bash
+curl -s "localhost:8080/produtos?categoria=bebida" -H "Authorization: Bearer $TOKEN" | jq '{totalItens,nomes:[.conteudo[].nome]}'
+```
+
+Esperado: 3 bebidas.
+
+**Cadastrar produto (201, ADMIN ou GERENTE)**
+
+```bash
+curl -s -X POST localhost:8080/produtos -H "Authorization: Bearer $GERENTE" \
+  -H 'Content-Type: application/json' \
+  -d '{"nome":"Pamonha","categoria":"milho","precoBase":9.50,"sazonal":true}' | jq
+```
+
+**Inativar produto (204, só ADMIN) — soft delete**
+
+```bash
+BOLO=30000000-0000-0000-0000-000000000006
+curl -s -o /dev/null -w "inativar: %{http_code}\n" -X DELETE localhost:8080/produtos/$BOLO \
+  -H "Authorization: Bearer $ADMIN"
+echo "--- sumiu da listagem:"
+curl -s localhost:8080/produtos -H "Authorization: Bearer $ADMIN" | jq .totalItens
+echo "--- mas continua existindo:"
+curl -s localhost:8080/produtos/$BOLO -H "Authorization: Bearer $ADMIN" | jq '{nome,ativo}'
+```
+
+O produto sai da listagem mas continua acessível por id, com `ativo: false`. Apagar de
+verdade quebraria todo pedido antigo que aponta para ele.
+
+---
+
+### 4.5 Cardápio por unidade
+
+Esta é a parte que mostra na prática que **nem toda loja da rede é igual**.
+
+**Consulta pública (200)**
+
+```bash
+curl -s localhost:8080/unidades/$RECIFE/cardapio | jq '[.[] | {nome,preco,categoria}]'
+```
+
+**Unidade COMPLETA vende mais que a REDUZIDA**
+
+```bash
+echo "Recife (COMPLETA):  $(curl -s localhost:8080/unidades/$RECIFE/cardapio | jq 'length') itens"
+echo "Caruaru (REDUZIDA): $(curl -s localhost:8080/unidades/$CARUARU/cardapio | jq 'length') itens"
+```
+
+Esperado: 10 e 6.
+
+**Mesmo produto, preço diferente em cada loja**
+
+```bash
+for u in $RECIFE $CARUARU; do
+  curl -s localhost:8080/unidades/$u/cardapio \
+    | jq -r --arg u "$u" '.[] | select(.nome=="Tapioca de queijo coalho") | "\($u): R$ \(.preco)"'
+done
+```
+
+**Gerente ajusta o preço da própria loja (200)**
+
+```bash
+curl -s -X PUT localhost:8080/unidades/$RECIFE/cardapio/$TAPIOCA \
   -H "Authorization: Bearer $GERENTE" -H 'Content-Type: application/json' \
-  -d '{"nome":"Intruso","email":"intruso@raizes.com.br","senha":"Senha@123","perfil":"ATENDENTE","unidadeId":"10000000-0000-0000-0000-000000000002"}' | jq
+  -d '{"preco":15.50,"disponivel":true}' | jq '{nome,preco,disponivel}'
 ```
 
-Esperado: `403` — o gerente é de Recife e tentou cadastrar em Caruaru.
-
-### 404 — recurso inexistente (e não 403)
+**Tirar item do ar sem apagar o cadastro**
 
 ```bash
-ADMIN=$(curl -s -X POST localhost:8080/auth/login -H 'Content-Type: application/json' -d '{"email":"admin@raizes.com.br","senha":"Senha@123"}' | jq -r .accessToken)
-curl -s -X POST localhost:8080/usuarios/operadores \
-  -H "Authorization: Bearer $ADMIN" -H 'Content-Type: application/json' \
-  -d '{"nome":"Fantasma","email":"fantasma@raizes.com.br","senha":"Senha@123","perfil":"ATENDENTE","unidadeId":"10000000-0000-0000-0000-0000000000ff"}' | jq
+curl -s -X PUT localhost:8080/unidades/$RECIFE/cardapio/$TAPIOCA \
+  -H "Authorization: Bearer $GERENTE" -H 'Content-Type: application/json' \
+  -d '{"preco":15.50,"disponivel":false}' > /dev/null
+echo "--- visao do cliente:    $(curl -s localhost:8080/unidades/$RECIFE/cardapio | jq 'length') itens"
+echo "--- visao da operacao:   $(curl -s "localhost:8080/unidades/$RECIFE/cardapio?incluirIndisponiveis=true" | jq 'length') itens"
 ```
 
-Esperado: `404`, `error: "UNIDADE_NAO_ENCONTRADA"`. Admin pode acessar qualquer unidade,
-então o que falta é o recurso, não a permissão.
+O item some para o cliente e continua visível para quem administra a loja.
 
-### 409 — e-mail já cadastrado (só no cadastro de operador)
+---
 
-O cadastro **público** nunca devolve 409, de propósito. Já o cadastro de operador é feito
-por admin ou gerente autenticado, então não há enumeração a evitar e o erro é explícito.
+## 5. Erros
+
+Todos devolvem o mesmo formato: `error`, `message`, `details[]`, `timestamp`, `path`,
+`requestId`.
+
+| # | Cenário | Esperado |
+|---|---|---|
+| 1 | Sem token | 401 `NAO_AUTENTICADO` |
+| 2 | Cliente em rota de admin | 403 `SEM_PERMISSAO` |
+| 3 | Gerente em outra unidade | 403 `SEM_PERMISSAO` |
+| 4 | Unidade inexistente | 404 `UNIDADE_NAO_ENCONTRADA` |
+| 5 | Produto inexistente | 404 `PRODUTO_NAO_ENCONTRADO` |
+| 6 | E-mail duplicado (operador) | 409 `EMAIL_JA_CADASTRADO` |
+| 7 | Senha fraca | 422 `VALIDACAO` |
+| 8 | Preço negativo | 422 `VALIDACAO` |
+| 9 | Campo obrigatório ausente | 400 `REQUISICAO_INVALIDA` |
+| 10 | Enum inválido | 400 `REQUISICAO_INVALIDA` |
+| 11 | UUID mal formado | 400 `REQUISICAO_INVALIDA` |
+| 12 | Paginação inválida | 400 `REQUISICAO_INVALIDA` |
+| 13 | Código de verificação errado | 400 `CODIGO_VERIFICACAO_INVALIDO` |
 
 ```bash
-curl -s -X POST localhost:8080/usuarios/operadores \
-  -H "Authorization: Bearer $ADMIN" -H 'Content-Type: application/json' \
-  -d '{"nome":"Repetido","email":"cliente@exemplo.com","senha":"Senha@123","perfil":"ATENDENTE","unidadeId":"10000000-0000-0000-0000-000000000001"}' | jq
+p() { printf "\n--- %s\n" "$1"; }
+
+p "1. sem token";            curl -s localhost:8080/usuarios/me | jq -c '{error,message}'
+p "2. cliente em rota admin"; curl -s -X POST localhost:8080/unidades -H "Authorization: Bearer $TOKEN" \
+  -H 'Content-Type: application/json' -d '{"nome":"X","cidade":"Y","uf":"PE","tipoOperacao":"COMPLETA"}' | jq -c '{error}'
+p "3. gerente em outra unidade"; curl -s -X PUT localhost:8080/unidades/$CARUARU/cardapio/$TAPIOCA \
+  -H "Authorization: Bearer $GERENTE" -H 'Content-Type: application/json' \
+  -d '{"preco":1.00,"disponivel":true}' | jq -c '{error,message}'
+p "4. unidade inexistente";  curl -s localhost:8080/unidades/10000000-0000-0000-0000-0000000000ff/cardapio | jq -c '{error}'
+p "5. produto inexistente";  curl -s -X PUT localhost:8080/unidades/$RECIFE/cardapio/30000000-0000-0000-0000-0000000000ff \
+  -H "Authorization: Bearer $ADMIN" -H 'Content-Type: application/json' -d '{"preco":10.00,"disponivel":true}' | jq -c '{error}'
+p "6. email duplicado";      curl -s -X POST localhost:8080/usuarios/operadores -H "Authorization: Bearer $ADMIN" \
+  -H 'Content-Type: application/json' \
+  -d "{\"nome\":\"Repetido\",\"email\":\"cliente@exemplo.com\",\"senha\":\"Senha@123\",\"perfil\":\"ATENDENTE\",\"unidadeId\":\"$RECIFE\"}" | jq -c '{error,details}'
+p "7. senha fraca";          curl -s -X POST localhost:8080/usuarios -H 'Content-Type: application/json' \
+  -d '{"nome":"Joana Silva","email":"fraca@exemplo.com","senha":"12345678"}' | jq -c '{error,details}'
+p "8. preco negativo";       curl -s -X PUT localhost:8080/unidades/$RECIFE/cardapio/$TAPIOCA \
+  -H "Authorization: Bearer $ADMIN" -H 'Content-Type: application/json' -d '{"preco":-5.00,"disponivel":true}' | jq -c '{error,details}'
+p "9. campo ausente";        curl -s -X POST localhost:8080/auth/login -H 'Content-Type: application/json' \
+  -d '{"senha":"Senha@123"}' | jq -c '{error,details}'
+p "10. enum invalido";       curl -s -X POST localhost:8080/unidades -H "Authorization: Bearer $ADMIN" \
+  -H 'Content-Type: application/json' -d '{"nome":"X","cidade":"Y","uf":"PE","tipoOperacao":"DRIVE_THRU"}' | jq -c '{error,details}'
+p "11. uuid mal formado";    curl -s localhost:8080/unidades/isso-nao-e-uuid | jq -c '{error,details}'
+p "12. paginacao invalida";  curl -s "localhost:8080/unidades?page=0&limit=999" | jq -c '{error,details}'
+p "13. codigo errado";       curl -s -X POST localhost:8080/usuarios/verificacao -H 'Content-Type: application/json' \
+  -d '{"email":"joana@exemplo.com","codigo":"000000"}' | jq -c '{error}'
+echo
 ```
-
-Esperado: `409`, `error: "EMAIL_JA_CADASTRADO"`, com `details[0].field: "email"`.
-
-### 400 — código de verificação errado
-
-```bash
-curl -s -X POST localhost:8080/usuarios/verificacao -H 'Content-Type: application/json' \
-  -d '{"email":"joana@exemplo.com","codigo":"000000"}' | jq
-```
-
-Esperado: `400`, `error: "CODIGO_VERIFICACAO_INVALIDO"`. E-mail inexistente devolve
-exatamente este mesmo erro — pelo mesmo motivo do login.
-
-### 422 — senha fraca
-
-```bash
-curl -s -X POST localhost:8080/usuarios -H 'Content-Type: application/json' \
-  -d '{"nome":"Joana Silva","email":"joana2@exemplo.com","senha":"12345678"}' | jq
-```
-
-Esperado: `422`, `error: "VALIDACAO"`, `details[0].field: "senha"`.
-
-### 400 — campo obrigatório ausente
-
-```bash
-curl -s -X POST localhost:8080/auth/login -H 'Content-Type: application/json' \
-  -d '{"senha":"Senha@123"}' | jq
-```
-
-Esperado: `400`, `error: "REQUISICAO_INVALIDA"`, `details[0].field: "email"`,
-`issue: "campo obrigatorio"`.
-
-### 400 — enum inválido
-
-```bash
-curl -s -X POST localhost:8080/usuarios/operadores \
-  -H "Authorization: Bearer $ADMIN" -H 'Content-Type: application/json' \
-  -d '{"nome":"X","email":"x@raizes.com.br","senha":"Senha@123","perfil":"CHEFE_SUPREMO","unidadeId":"10000000-0000-0000-0000-000000000001"}' | jq
-```
-
-Esperado: `400`, com `details[0].issue` listando os perfis aceitos.
 
 ### Rastreabilidade do erro
 
@@ -306,34 +445,38 @@ Esse id também aparece no log do container, o que permite achar a requisição 
 
 ---
 
-## 6. Rotação do refresh token
-
-```bash
-REFRESH=$(curl -s -X POST localhost:8080/auth/login -H 'Content-Type: application/json' -d '{"email":"cliente@exemplo.com","senha":"Senha@123"}' | jq -r .refreshToken)
-echo "--- primeira renovacao (espera 200):"
-curl -s -X POST localhost:8080/auth/refresh -H 'Content-Type: application/json' -d "{\"refreshToken\":\"$REFRESH\"}" | jq -r '.accessToken // .error'
-echo "--- reusando o mesmo refresh (espera TOKEN_INVALIDO):"
-curl -s -X POST localhost:8080/auth/refresh -H 'Content-Type: application/json' -d "{\"refreshToken\":\"$REFRESH\"}" | jq -r '.accessToken // .error'
-```
-
-O segundo tem que falhar. É a rotação funcionando: refresh usado não vale mais.
-
----
-
-## 7. Encerrar
+## 6. Encerrar
 
 ```bash
 cd ~/Documents/faculdade/TCC/raizes-do-nordeste-api && docker compose down
 ```
 
-Isso para os containers e **mantém** o volume do banco — ao subir de novo, os dados
-continuam lá e o Flyway não reaplica as migrations.
+Para os containers e **mantém** o volume do banco — ao subir de novo, os dados continuam
+lá e o Flyway não reaplica as migrations.
 
 Para começar do zero (necessário se alguma migration for alterada):
 
 ```bash
 cd ~/Documents/faculdade/TCC/raizes-do-nordeste-api && docker compose down -v
 ```
+
+---
+
+## Ambientes
+
+| | `dev` | `prod` |
+|---|---|---|
+| Arquivo | `application-dev.yaml` | `application-prod.yaml` |
+| Código de verificação | fixo, `258369` | sorteado (`SecureRandom`) |
+| Código no log | sim (é público e documentado) | nunca — é credencial |
+| Swagger / OpenAPI | no ar | desligado |
+| SQL no log | sim | não (vaza dado pessoal nos parâmetros) |
+| Segredos | têm default para facilitar | **sem default** — falta de variável derruba no startup |
+| Actuator | `health`, `info`, com detalhes | só `health`, sem detalhes |
+
+O perfil `prod` não é usado hoje — o Dockerfile fixa `dev`. Ele existe para a separação
+de ambientes ser real em vez de teórica. Enquanto não houver um `EnviadorDeEmail` de
+verdade, subir em `prod` registra um aviso no startup e os códigos não chegam a ninguém.
 
 ---
 
@@ -346,4 +489,5 @@ cd ~/Documents/faculdade/TCC/raizes-do-nordeste-api && docker compose down -v
 | `Schema-validation: wrong column type` | Migration e entidade divergiram | Corrigir a entidade ou criar migration nova |
 | `Migration checksum mismatch` | Migration já aplicada foi editada | `docker compose down -v` e subir de novo |
 | API sobe mas toda rota dá 401 | Esperado nas rotas protegidas | Fazer login e mandar o `Authorization: Bearer` |
+| Rota nova dá 401 sem motivo | *Default deny*: rota não liberada no `SecurityConfig` | Liberar explicitamente, se for para ser pública |
 | Build do container muito lento | Primeira vez baixa Gradle e dependências | Normal; as próximas usam cache |
