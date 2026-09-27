@@ -41,6 +41,12 @@ app:
   fidelidade:
     # Quantos reais de pedido pago valem 1 ponto (RF20).
     reais-por-ponto: 1
+  verificacao-email:
+    # Vazio = codigo sorteado, que e o comportamento de produção.
+    # O perfil dev sobrescreve com um valor fixo para a avaliação ser reproduzivel.
+    codigo-fixo: ${VERIFICACAO_CODIGO_FIXO:}
+    validade-horas: 24
+    max-tentativas: 5
   pagamento:
     # Gateway simulado: chance de recusa nao e aleatoria, e determinada por regra
     # deterministica no servico, para os testes serem reproduziveis (RN14).

@@ -57,6 +57,14 @@ class SecurityConfig(
                     // ---------------------------------------- rotas publicas
                     .requestMatchers("/auth/login", "/auth/refresh").permitAll()
                     .requestMatchers(HttpMethod.POST, "/usuarios").permitAll()
+                    // Verificação de e-mail e publica por definição: quem acabou de
+                    // se cadastrar ainda não consegue logar, entao não teria como
+                    // mandar token nenhum.
+                    .requestMatchers(
+                        HttpMethod.POST,
+                        "/usuarios/verificacao",
+                        "/usuarios/verificacao/reenvio",
+                    ).permitAll()
                     .requestMatchers(HttpMethod.GET, "/unidades", "/unidades/*").permitAll()
                     .requestMatchers(HttpMethod.GET, "/unidades/*/cardapio").permitAll()
                     .requestMatchers(

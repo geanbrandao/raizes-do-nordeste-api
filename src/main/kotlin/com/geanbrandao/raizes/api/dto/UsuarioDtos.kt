@@ -86,3 +86,44 @@ data class UsuarioResponse(
     val dataNascimento: LocalDate? = null,
     val ativo: Boolean,
 )
+
+/**
+ * Resposta do cadastro publico de cliente.
+ *
+ * E sempre a mesma, exista ou não o e-mail informado. Essa é a escolha que impede
+ * o endpoint de virar consulta de "quem tem conta aqui".
+ */
+@Schema(description = "Confirmação generica do cadastro")
+data class CadastroAceitoResponse(
+    @field:Schema(
+        example = "Se o e-mail informado puder ser usado, enviamos um codigo de verificação para ele.",
+    )
+    val mensagem: String = MENSAGEM_PADRAO,
+) {
+    companion object {
+        const val MENSAGEM_PADRAO =
+            "Se o e-mail informado puder ser usado, enviamos um codigo de verificação para ele."
+    }
+}
+
+/** Confirmação do codigo recebido no cadastro. */
+@Schema(description = "Confirmação de e-mail")
+data class ConfirmacaoEmailRequest(
+    @field:NotBlank(message = "informe o e-mail")
+    @field:Email(message = "e-mail invalido")
+    @field:Schema(example = "joana@exemplo.com")
+    val email: String,
+
+    @field:NotBlank(message = "informe o codigo")
+    @field:Pattern(regexp = "^\\d{6}$", message = "o codigo tem 6 digitos")
+    @field:Schema(description = "Em ambiente de desenvolvimento o codigo e sempre 258369", example = "258369")
+    val codigo: String,
+)
+
+/** Pedido de reenvio do codigo de verificação. */
+@Schema(description = "Reenvio do codigo de verificação")
+data class ReenvioCodigoRequest(
+    @field:NotBlank(message = "informe o e-mail")
+    @field:Email(message = "e-mail invalido")
+    val email: String,
+)

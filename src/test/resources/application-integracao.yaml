@@ -22,3 +22,9 @@ jwt:
   secret: segredo-de-teste-comprido-o-bastante-para-hmac-sha256-funcionar
   access-token-expiration: 900000
   refresh-token-expiration: 604800000
+
+app:
+  verificacao-email:
+    codigo-fixo: "258369"
+    validade-horas: 24
+    max-tentativas: 5

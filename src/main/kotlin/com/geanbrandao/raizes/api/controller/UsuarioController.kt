@@ -1,11 +1,15 @@
 package com.geanbrandao.raizes.api.controller
 
+import com.geanbrandao.raizes.api.dto.CadastroAceitoResponse
 import com.geanbrandao.raizes.api.dto.CadastroClienteRequest
 import com.geanbrandao.raizes.api.dto.CadastroOperadorRequest
+import com.geanbrandao.raizes.api.dto.ConfirmacaoEmailRequest
+import com.geanbrandao.raizes.api.dto.ReenvioCodigoRequest
 import com.geanbrandao.raizes.api.dto.UsuarioResponse
 import com.geanbrandao.raizes.api.exception.ErrorResponse
 import com.geanbrandao.raizes.api.security.UsuarioAutenticado
 import com.geanbrandao.raizes.api.service.UsuarioService
+import com.geanbrandao.raizes.api.service.VerificacaoEmailService
 import io.swagger.v3.oas.annotations.Operation
 import io.swagger.v3.oas.annotations.media.Content
 import io.swagger.v3.oas.annotations.media.Schema
@@ -34,6 +38,7 @@ import org.springframework.web.bind.annotation.RestController
 @Tag(name = "Usuarios", description = "Cadastro de clientes e operadores")
 class UsuarioController(
     private val usuarioService: UsuarioService,
+    private val verificacaoEmailService: VerificacaoEmailService,
 ) {
 
     /**
@@ -41,24 +46,31 @@ class UsuarioController(
      *
      * POST /usuarios
      *
+     * Devolve sempre 202 com a mesma mensagem, exista ou não o e-mail. Quem chama
+     * não consegue distinguir os dois casos, o que impede usar este endpoint para
+     * descobrir quem tem conta na rede. A conta so passa a funcionar depois que o
+     * dono do endereco confirmar o codigo.
+     *
      * @param request Dados do cadastro.
-     * @return Cliente criado, com 201.
+     * @return Mensagem generica, com 202.
      */
     @PostMapping
-    @ResponseStatus(HttpStatus.CREATED)
+    @ResponseStatus(HttpStatus.ACCEPTED)
     @SecurityRequirements
     @Operation(
         summary = "Cadastrar cliente",
-        description = "Cria uma conta de cliente. A data de nascimento e opcional e " +
-            "so e usada em campanha segmentada, mediante consentimento.",
+        description = "Cria uma conta de cliente e envia um codigo de verificação.\n\n" +
+            "A resposta e sempre a mesma, exista ou não o e-mail informado: isso evita " +
+            "que o endpoint seja usado para descobrir quais enderecos tem conta.\n\n" +
+            "A conta so consegue fazer login depois de confirmar o codigo em " +
+            "POST /usuarios/verificacao.\n\n" +
+            "**Em ambiente de desenvolvimento o codigo e sempre `258369`.** " +
+            "Ele tambem aparece no log da aplicação.\n\n" +
+            "A data de nascimento e opcional e so e usada em campanha segmentada, " +
+            "mediante consentimento.",
     )
     @ApiResponses(
-        ApiResponse(responseCode = "201", description = "Cliente cadastrado"),
-        ApiResponse(
-            responseCode = "409",
-            description = "E-mail ja cadastrado",
-            content = [Content(schema = Schema(implementation = ErrorResponse::class))],
-        ),
+        ApiResponse(responseCode = "202", description = "Cadastro recebido"),
         ApiResponse(
             responseCode = "422",
             description = "Campos invalidos",
@@ -67,7 +79,61 @@ class UsuarioController(
     )
     fun cadastrarCliente(
         @Valid @RequestBody request: CadastroClienteRequest,
-    ): UsuarioResponse = usuarioService.cadastrarCliente(request)
+    ): CadastroAceitoResponse {
+        usuarioService.cadastrarCliente(request)
+        return CadastroAceitoResponse()
+    }
+
+    /**
+     * Confirma o e-mail com o codigo recebido no cadastro.
+     *
+     * POST /usuarios/verificacao
+     *
+     * @param request E-mail e codigo de 6 digitos.
+     */
+    @PostMapping("/verificacao")
+    @ResponseStatus(HttpStatus.NO_CONTENT)
+    @SecurityRequirements
+    @Operation(
+        summary = "Confirmar e-mail",
+        description = "Valida o codigo de verificação e libera o login da conta.\n\n" +
+            "**Em ambiente de desenvolvimento o codigo e sempre `258369`.**\n\n" +
+            "Codigo errado e e-mail inexistente devolvem exatamente o mesmo erro, " +
+            "pelo mesmo motivo do cadastro.",
+    )
+    @ApiResponses(
+        ApiResponse(responseCode = "204", description = "E-mail confirmado"),
+        ApiResponse(
+            responseCode = "400",
+            description = "Codigo invalido, expirado ou com tentativas esgotadas",
+            content = [Content(schema = Schema(implementation = ErrorResponse::class))],
+        ),
+    )
+    fun confirmarEmail(@Valid @RequestBody request: ConfirmacaoEmailRequest) {
+        verificacaoEmailService.confirmar(request.email, request.codigo)
+    }
+
+    /**
+     * Reenvia o codigo de verificação.
+     *
+     * POST /usuarios/verificacao/reenvio
+     *
+     * @param request E-mail da conta.
+     * @return Mensagem generica, com 202.
+     */
+    @PostMapping("/verificacao/reenvio")
+    @ResponseStatus(HttpStatus.ACCEPTED)
+    @SecurityRequirements
+    @Operation(
+        summary = "Reenviar codigo de verificação",
+        description = "Emite um codigo novo, se a conta existir e ainda não estiver " +
+            "verificada. A resposta e sempre a mesma, nos dois casos.",
+    )
+    @ApiResponses(ApiResponse(responseCode = "202", description = "Pedido recebido"))
+    fun reenviarCodigo(@Valid @RequestBody request: ReenvioCodigoRequest): CadastroAceitoResponse {
+        verificacaoEmailService.reenviar(request.email)
+        return CadastroAceitoResponse()
+    }
 
     /**
      * Cadastra um operador de unidade. So admin e gerente.

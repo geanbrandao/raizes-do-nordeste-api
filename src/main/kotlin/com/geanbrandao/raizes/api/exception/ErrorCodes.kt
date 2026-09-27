@@ -26,7 +26,14 @@ object ErrorCodes {
     const val USUARIO_INATIVO = "USUARIO_INATIVO"
 
     // Usuario
+    /**
+     * So usado no cadastro de operador, que e autenticado e feito por admin ou
+     * gerente. O cadastro publico de cliente nunca devolve este codigo, senão
+     * viraria uma forma de descobrir quais e-mails tem conta na rede.
+     */
     const val EMAIL_JA_CADASTRADO = "EMAIL_JA_CADASTRADO"
+    const val EMAIL_NAO_VERIFICADO = "EMAIL_NAO_VERIFICADO"
+    const val CODIGO_VERIFICACAO_INVALIDO = "CODIGO_VERIFICACAO_INVALIDO"
 
     // Unidade, produto e cardapio
     const val UNIDADE_NAO_ENCONTRADA = "UNIDADE_NAO_ENCONTRADA"

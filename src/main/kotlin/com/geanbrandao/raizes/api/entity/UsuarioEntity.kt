@@ -54,6 +54,16 @@ class UsuarioEntity(
     @Column(name = "data_nascimento")
     var dataNascimento: LocalDate? = null,
 
+    /**
+     * Se o dono do endereco ja confirmou o codigo enviado no cadastro.
+     *
+     * Conta não verificada existe no banco mas não loga. E isso que permite o
+     * cadastro responder a mesma coisa para e-mail novo e ja existente: criar conta
+     * com o endereco de outra pessoa não da acesso a nada.
+     */
+    @Column(name = "email_verificado", nullable = false)
+    var emailVerificado: Boolean = false,
+
     @Column(name = "ativo", nullable = false)
     var ativo: Boolean = true,
 

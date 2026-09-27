@@ -78,6 +78,17 @@ class AuthService(
             )
         }
 
+        // So chega aqui quem ja acertou a senha, entao dizer que falta verificar
+        // não entrega nada a quem não sabia. E a informação e necessaria: sem ela a
+        // pessoa não teria como saber o que fazer para entrar.
+        if (!usuario.emailVerificado) {
+            throw ApiException(
+                error = ErrorCodes.EMAIL_NAO_VERIFICADO,
+                message = "Confirme seu e-mail para acessar a conta.",
+                status = HttpStatus.FORBIDDEN,
+            )
+        }
+
         return montarResposta(usuario)
     }
 

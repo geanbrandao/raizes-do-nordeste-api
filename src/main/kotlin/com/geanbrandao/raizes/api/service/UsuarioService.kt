@@ -16,6 +16,7 @@ import com.geanbrandao.raizes.api.repository.ContaFidelidadeRepository
 import com.geanbrandao.raizes.api.repository.UnidadeRepository
 import com.geanbrandao.raizes.api.repository.UsuarioRepository
 import com.geanbrandao.raizes.api.security.UsuarioAutenticado
+import org.slf4j.LoggerFactory
 import org.springframework.security.crypto.password.PasswordEncoder
 import org.springframework.stereotype.Service
 import org.springframework.transaction.annotation.Transactional
@@ -29,40 +30,52 @@ class UsuarioService(
     private val usuarioRepository: UsuarioRepository,
     private val unidadeRepository: UnidadeRepository,
     private val contaFidelidadeRepository: ContaFidelidadeRepository,
+    private val verificacaoEmailService: VerificacaoEmailService,
     private val passwordEncoder: PasswordEncoder,
 ) {
+    private val logger = LoggerFactory.getLogger(UsuarioService::class.java)
 
     /**
-     * Cadastra um cliente.
+     * Cadastra um cliente e dispara o codigo de verificação.
      *
-     * A conta de fidelidade ja nasce junto, mas zerada e sem pontuar. Ela so passa
-     * a acumular quando o cliente der consentimento, o que acontece em outro
-     * endpoint. Criar a conta agora simplifica o resto do codigo sem tratar dado de
-     * perfil de consumo antes da hora.
+     * O metodo não devolve nada e nunca lança erro de e-mail duplicado. Quem chama
+     * recebe sempre a mesma resposta, exista ou não a conta. Sem isso, o cadastro
+     * seria a forma mais comoda de descobrir quem tem conta na rede: bastaria
+     * tentar registrar uma lista de enderecos e anotar quais deram conflito.
+     *
+     * O hash da senha e calculado antes da consulta de proposito. BCrypt custa
+     * dezenas de milissegundos, e se ele rodasse so no caminho de e-mail novo, o
+     * tempo de resposta entregaria a mesma informação que a mensagem esconde.
+     *
+     * A conta de fidelidade ja nasce junto, mas inativa. Ela so passa a acumular
+     * quando o cliente der consentimento, o que acontece em outro endpoint.
      *
      * @param request Dados do cadastro.
-     * @return Usuario criado.
-     * @throws ConflitoException se o e-mail ja estiver em uso.
      */
     @Transactional
-    fun cadastrarCliente(request: CadastroClienteRequest): UsuarioResponse {
+    fun cadastrarCliente(request: CadastroClienteRequest) {
         val email = request.email.trim().lowercase()
+
+        // Sempre roda, nos dois caminhos, para o tempo de resposta ficar igual.
+        val senhaHash = passwordEncoder.encode(request.senha)
+
         if (usuarioRepository.existsByEmail(email)) {
-            throw ConflitoException(
-                error = ErrorCodes.EMAIL_JA_CADASTRADO,
-                message = "Ja existe uma conta com este e-mail.",
-                details = listOf(ErrorDetail("email", "ja cadastrado")),
-            )
+            // Conta ja existe: nada e criado e nada e dito. Em produção, o certo
+            // aqui seria avisar o dono do endereco que alguem tentou se cadastrar
+            // com o e-mail dele.
+            logger.info("Cadastro tentado em e-mail ja existente; resposta generica devolvida")
+            return
         }
 
         val usuario = usuarioRepository.save(
             UsuarioEntity(
                 nome = request.nome.trim(),
                 email = email,
-                senhaHash = passwordEncoder.encode(request.senha),
+                senhaHash = senhaHash,
                 perfil = Perfil.CLIENTE,
                 unidadeId = null,
                 dataNascimento = request.dataNascimento,
+                emailVerificado = false,
             ),
         )
 
@@ -70,7 +83,7 @@ class UsuarioService(
             ContaFidelidadeEntity(clienteId = usuario.id, saldoPontos = 0, ativa = false),
         )
 
-        return usuario.paraResponse()
+        verificacaoEmailService.emitirCodigo(usuario)
     }
 
     /**
@@ -118,6 +131,9 @@ class UsuarioService(
 
         val email = request.email.trim().lowercase()
         if (usuarioRepository.existsByEmail(email)) {
+            // Aqui o 409 explicito pode: quem chama ja e admin ou gerente
+            // autenticado, entao não ha enumeração a evitar, e esconder o motivo so
+            // atrapalharia quem esta cadastrando a equipe.
             throw ConflitoException(
                 error = ErrorCodes.EMAIL_JA_CADASTRADO,
                 message = "Ja existe uma conta com este e-mail.",
@@ -132,6 +148,9 @@ class UsuarioService(
                 senhaHash = passwordEncoder.encode(request.senha),
                 perfil = request.perfil,
                 unidadeId = request.unidadeId,
+                // Operador e criado por alguem de confiança, ja autenticado, entao
+                // não precisa confirmar e-mail para começar a trabalhar.
+                emailVerificado = true,
             ),
         ).paraResponse()
     }

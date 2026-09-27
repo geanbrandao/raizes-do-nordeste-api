@@ -12,6 +12,12 @@ jwt:
   access-token-expiration: 900000      # 15 minutos em ms
   refresh-token-expiration: 604800000  # 7 dias em ms
 
+app:
+  verificacao-email:
+    # Codigo fixo em dev: quem for avaliar a API não tem caixa de entrada para
+    # consultar. Em produção esta chave fica vazia e o codigo passa a ser sorteado.
+    codigo-fixo: "258369"
+
 rate-limit:
   capacity: 300   # folgado em dev para nao atrapalhar teste manual
   refill-minutes: 1

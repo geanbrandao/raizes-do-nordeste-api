@@ -14,7 +14,7 @@ Pré-requisitos já conferidos nesta máquina: Docker Desktop instalado, Java 17
 cd ~/Documents/faculdade/TCC/raizes-do-nordeste-api && ./gradlew test
 ```
 
-Esperado: `BUILD SUCCESSFUL`, 51 testes, 0 falhas.
+Esperado: `BUILD SUCCESSFUL`, 62 testes, 0 falhas.
 
 Os testes usam H2 em modo PostgreSQL com as migrations reais aplicadas pelo Flyway.
 Provam a coerência entre migrations, entidades e seed — mas **não** substituem uma
@@ -47,7 +47,7 @@ Deixe esse terminal aberto mostrando o log e use outro para os comandos seguinte
 | Sinal | Significa |
 |---|---|
 | `database system is ready to accept connections` | Postgres no ar |
-| `Successfully applied 14 migrations` | Flyway criou o schema e aplicou o seed |
+| `Successfully applied 16 migrations` | Flyway criou o schema e aplicou o seed |
 | `Tomcat started on port 8080` | API no ar |
 | `Started RaizesApiApplication` | Subiu inteira |
 
@@ -68,9 +68,10 @@ Esperado: `{"status":"UP"}`
 docker compose exec postgres psql -U raizes_user -d raizes -c "\dt"
 ```
 
-Esperado: 15 tabelas (`unidades`, `usuarios`, `produtos`, `cardapio_unidade`, `estoque`,
+Esperado: 16 tabelas (`unidades`, `usuarios`, `produtos`, `cardapio_unidade`, `estoque`,
 `movimentacoes_estoque`, `pedidos`, `itens_pedido`, `pagamentos`, `contas_fidelidade`,
-`movimentacoes_pontos`, `consentimentos`, `logs_auditoria`, `campanhas`, `refresh_tokens`)
+`movimentacoes_pontos`, `consentimentos`, `logs_auditoria`, `campanhas`, `refresh_tokens`,
+`tokens_verificacao_email`)
 mais a `flyway_schema_history`.
 
 ```bash
@@ -78,7 +79,7 @@ docker compose exec postgres psql -U raizes_user -d raizes \
   -c "SELECT version, description, success FROM flyway_schema_history ORDER BY installed_rank;"
 ```
 
-Esperado: 14 linhas, todas com `success = t`.
+Esperado: 16 linhas, todas com `success = t`.
 
 ```bash
 docker compose exec postgres psql -U raizes_user -d raizes \
@@ -110,7 +111,7 @@ curl -s localhost:8080/v3/api-docs | jq -r '.paths | keys[]'
 ```
 
 Esperado: `/auth/login`, `/auth/logout`, `/auth/refresh`, `/usuarios`, `/usuarios/me`,
-`/usuarios/operadores`.
+`/usuarios/operadores`, `/usuarios/verificacao`, `/usuarios/verificacao/reenvio`.
 
 ---
 
@@ -150,12 +151,46 @@ TOKEN=$(curl -s -X POST localhost:8080/auth/login -H 'Content-Type: application/
 curl -s localhost:8080/usuarios/me -H "Authorization: Bearer $TOKEN" | jq
 ```
 
-### 4.3 Cadastro de cliente (201)
+### 4.3 Cadastro de cliente + verificação de e-mail (202 → 204 → 200)
+
+O cadastro devolve **sempre a mesma resposta**, exista ou não o e-mail. A conta nasce
+pendente e só loga depois de confirmar o código.
+
+> **Em ambiente de desenvolvimento o código é sempre `258369`.** Ele também aparece no
+> log da aplicação (`docker compose logs app | grep VERIFICACAO`). Em produção a chave
+> `app.verificacao-email.codigo-fixo` fica vazia e o código passa a ser sorteado.
 
 ```bash
+# 1. cadastrar -> 202 generico
 curl -s -X POST localhost:8080/usuarios \
   -H 'Content-Type: application/json' \
   -d '{"nome":"Joana Silva","email":"joana@exemplo.com","senha":"Senha@123"}' | jq
+
+# 2. tentar logar antes de confirmar -> 403 EMAIL_NAO_VERIFICADO
+curl -s -X POST localhost:8080/auth/login -H 'Content-Type: application/json' \
+  -d '{"email":"joana@exemplo.com","senha":"Senha@123"}' | jq
+
+# 3. confirmar com o codigo de dev -> 204
+curl -s -o /dev/null -w "%{http_code}\n" -X POST localhost:8080/usuarios/verificacao \
+  -H 'Content-Type: application/json' \
+  -d '{"email":"joana@exemplo.com","codigo":"258369"}'
+
+# 4. agora loga -> 200
+curl -s -X POST localhost:8080/auth/login -H 'Content-Type: application/json' \
+  -d '{"email":"joana@exemplo.com","senha":"Senha@123"}' | jq -r '.accessToken // .error'
+```
+
+### 4.4 Prova da proteção contra enumeração
+
+As duas chamadas abaixo — e-mail novo e e-mail que já existe — devolvem resposta
+**idêntica**, mesmo status e mesmo corpo:
+
+```bash
+echo "--- email novo:"; curl -s -X POST localhost:8080/usuarios -H 'Content-Type: application/json' \
+  -d '{"nome":"Fulano","email":"novo.endereco@exemplo.com","senha":"Senha@123"}'
+echo; echo "--- email existente:"; curl -s -X POST localhost:8080/usuarios -H 'Content-Type: application/json' \
+  -d '{"nome":"Outra Maria","email":"cliente@exemplo.com","senha":"Senha@123"}'
+echo
 ```
 
 ---
@@ -207,14 +242,28 @@ curl -s -X POST localhost:8080/usuarios/operadores \
 Esperado: `404`, `error: "UNIDADE_NAO_ENCONTRADA"`. Admin pode acessar qualquer unidade,
 então o que falta é o recurso, não a permissão.
 
-### 409 — e-mail já cadastrado
+### 409 — e-mail já cadastrado (só no cadastro de operador)
+
+O cadastro **público** nunca devolve 409, de propósito. Já o cadastro de operador é feito
+por admin ou gerente autenticado, então não há enumeração a evitar e o erro é explícito.
 
 ```bash
-curl -s -X POST localhost:8080/usuarios -H 'Content-Type: application/json' \
-  -d '{"nome":"Outra Maria","email":"cliente@exemplo.com","senha":"Senha@123"}' | jq
+curl -s -X POST localhost:8080/usuarios/operadores \
+  -H "Authorization: Bearer $ADMIN" -H 'Content-Type: application/json' \
+  -d '{"nome":"Repetido","email":"cliente@exemplo.com","senha":"Senha@123","perfil":"ATENDENTE","unidadeId":"10000000-0000-0000-0000-000000000001"}' | jq
 ```
 
 Esperado: `409`, `error: "EMAIL_JA_CADASTRADO"`, com `details[0].field: "email"`.
+
+### 400 — código de verificação errado
+
+```bash
+curl -s -X POST localhost:8080/usuarios/verificacao -H 'Content-Type: application/json' \
+  -d '{"email":"joana@exemplo.com","codigo":"000000"}' | jq
+```
+
+Esperado: `400`, `error: "CODIGO_VERIFICACAO_INVALIDO"`. E-mail inexistente devolve
+exatamente este mesmo erro — pelo mesmo motivo do login.
 
 ### 422 — senha fraca
 
