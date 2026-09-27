@@ -11,7 +11,7 @@ Vira a base da seção de execução do README na entrega final.
 Pré-requisitos já conferidos nesta máquina: Docker Desktop instalado, Java 17,
 `jq` disponível, portas 8080 e 5432 livres.
 
-**Estado atual:** 6 controllers, 23 operações HTTP, 124 testes automatizados.
+**Estado atual:** 7 controllers, 28 operações HTTP, 149 testes automatizados.
 
 ---
 
@@ -21,7 +21,7 @@ Pré-requisitos já conferidos nesta máquina: Docker Desktop instalado, Java 17
 cd ~/Documents/faculdade/TCC/raizes-do-nordeste-api && ./gradlew test
 ```
 
-Esperado: `BUILD SUCCESSFUL`, 124 testes, 0 falhas.
+Esperado: `BUILD SUCCESSFUL`, 149 testes, 0 falhas.
 
 Os testes usam H2 em modo PostgreSQL com as migrations reais aplicadas pelo Flyway.
 Provam a coerência entre migrations, entidades e seed — mas **não** substituem uma
@@ -115,7 +115,7 @@ Conferência de que a documentação reflete as rotas reais:
 curl -s localhost:8080/v3/api-docs | jq -r '.paths | keys[]'
 ```
 
-Esperado (17 rotas):
+Esperado (21 rotas):
 
 ```
 /auth/login          /auth/logout         /auth/refresh
@@ -126,6 +126,8 @@ Esperado (17 rotas):
 /unidades/{unidadeId}/cardapio            /unidades/{unidadeId}/cardapio/{produtoId}
 /unidades/{unidadeId}/estoque             /unidades/{unidadeId}/estoque/movimentacoes
 /unidades/{unidadeId}/estoque/{produtoId}/movimentacoes
+/pedidos             /pedidos/{pedidoId}
+/pedidos/{pedidoId}/status                /pedidos/{pedidoId}/cancelamento
 ```
 
 ---
@@ -464,6 +466,97 @@ sem recalcular nada.
 
 ---
 
+### 4.7 Pedidos — o fluxo crítico
+
+> Precisa das variáveis da seção **4.0**.
+
+**Criar pedido (201)**
+
+```bash
+PEDIDO=$(curl -s -X POST localhost:8080/pedidos -H "Authorization: Bearer $TOKEN" \
+  -H 'Content-Type: application/json' \
+  -d "{\"unidadeId\":\"$RECIFE\",\"canalPedido\":\"TOTEM\",\"itens\":[{\"produtoId\":\"$TAPIOCA\",\"quantidade\":2}]}")
+echo "$PEDIDO" | jq '{id,status,canalPedido,subtotal,desconto,total,proximosStatus,itens}'
+PEDIDO_ID=$(echo "$PEDIDO" | jq -r .id)
+```
+
+Esperado: `status: "AGUARDANDO_PAGAMENTO"`, `precoUnitario: 12.90`, `total: 25.80`.
+
+Repare que **o request não manda preço**. O servidor lê o preço do cardápio daquela
+unidade e congela no item — reajuste posterior não muda pedido antigo.
+
+**O preço vem do cardápio, não do cliente**
+
+```bash
+curl -s -X POST localhost:8080/pedidos -H "Authorization: Bearer $TOKEN" \
+  -H 'Content-Type: application/json' \
+  -d "{\"unidadeId\":\"$RECIFE\",\"canalPedido\":\"APP\",\"itens\":[{\"produtoId\":\"$TAPIOCA\",\"quantidade\":1,\"precoUnitario\":0.01}]}" \
+  | jq '.itens[0].precoUnitario'
+```
+
+Esperado: `12.90`. O `precoUnitario` enviado é simplesmente ignorado.
+
+**A criação baixa o estoque**
+
+```bash
+antes=$(curl -s "localhost:8080/unidades/$RECIFE/estoque?limit=100" -H "Authorization: Bearer $GERENTE" \
+  | jq --arg p "$TAPIOCA" '.conteudo[] | select(.produtoId==$p) | .saldoAtual')
+curl -s -o /dev/null -X POST localhost:8080/pedidos -H "Authorization: Bearer $TOKEN" \
+  -H 'Content-Type: application/json' \
+  -d "{\"unidadeId\":\"$RECIFE\",\"canalPedido\":\"APP\",\"itens\":[{\"produtoId\":\"$TAPIOCA\",\"quantidade\":3}]}"
+depois=$(curl -s "localhost:8080/unidades/$RECIFE/estoque?limit=100" -H "Authorization: Bearer $GERENTE" \
+  | jq --arg p "$TAPIOCA" '.conteudo[] | select(.produtoId==$p) | .saldoAtual')
+echo "saldo antes: $antes / depois: $depois (esperado: 3 a menos)"
+```
+
+**Multicanalidade: filtrar por canal**
+
+```bash
+curl -s "localhost:8080/pedidos?canalPedido=TOTEM" -H "Authorization: Bearer $TOKEN" \
+  | jq '{totalItens, canais:[.conteudo[].canalPedido]}'
+```
+
+Esperado: só `TOTEM` na lista. É o que permite a matriz acompanhar a venda por canal.
+
+**Avançar o status**
+
+```bash
+avancar() { curl -s -X PATCH localhost:8080/pedidos/$PEDIDO_ID/status \
+  -H "Authorization: Bearer $GERENTE" -H 'Content-Type: application/json' \
+  -d "{\"status\":\"$1\"}" | jq -r '.status // .error'; }
+avancar PAGO; avancar EM_PREPARO; avancar PRONTO; avancar ENTREGUE
+```
+
+Esperado: os quatro status em sequência.
+
+**Cancelar devolve o estoque**
+
+```bash
+NOVO=$(curl -s -X POST localhost:8080/pedidos -H "Authorization: Bearer $TOKEN" \
+  -H 'Content-Type: application/json' \
+  -d "{\"unidadeId\":\"$RECIFE\",\"canalPedido\":\"APP\",\"itens\":[{\"produtoId\":\"$TAPIOCA\",\"quantidade\":4}]}" | jq -r .id)
+curl -s -X POST localhost:8080/pedidos/$NOVO/cancelamento -H "Authorization: Bearer $TOKEN" | jq '{status}'
+curl -s "localhost:8080/unidades/$RECIFE/estoque/$TAPIOCA/movimentacoes" -H "Authorization: Bearer $GERENTE" \
+  | jq '[.conteudo[] | {tipo,quantidade,saldoApos,motivo}]'
+```
+
+O histórico mostra a saída **e** a devolução — a devolução não apaga a baixa.
+
+**Campanha aplicada automaticamente**
+
+O seed tem uma campanha de 10% exclusiva do canal `APP`, válida na rede toda:
+
+```bash
+curl -s -X POST localhost:8080/pedidos -H "Authorization: Bearer $TOKEN" \
+  -H 'Content-Type: application/json' \
+  -d "{\"unidadeId\":\"$RECIFE\",\"canalPedido\":\"APP\",\"itens\":[{\"produtoId\":\"$TAPIOCA\",\"quantidade\":2}]}" \
+  | jq '{subtotal,desconto,total,campanhaAplicada}'
+```
+
+Compare com o mesmo pedido pelo `TOTEM`, que não tem desconto.
+
+---
+
 ## 5. Erros
 
 > Precisa das variáveis da seção **4.0**.
@@ -489,6 +582,11 @@ Todos devolvem o mesmo formato: `error`, `message`, `details[]`, `timestamp`, `p
 | 14 | Saída maior que o saldo | 409 `ESTOQUE_INSUFICIENTE` |
 | 15 | Cliente acessando estoque | 403 `SEM_PERMISSAO` |
 | 16 | Entrada de quantidade zero | 422 `VALIDACAO` |
+| 17 | Pedido sem `canalPedido` | 400 `REQUISICAO_INVALIDA` |
+| 18 | Pedido sem estoque | 409 `ESTOQUE_INSUFICIENTE` |
+| 19 | Item fora do cardápio da unidade | 422 `PRODUTO_FORA_DO_CARDAPIO` |
+| 20 | Transição de status inválida | 409 `TRANSICAO_DE_STATUS_INVALIDA` |
+| 21 | Pedido de outra pessoa | 404 `PEDIDO_NAO_ENCONTRADO` |
 
 ```bash
 p() { printf "\n--- %s\n" "$1"; }
@@ -524,6 +622,19 @@ p "15. cliente no estoque";  curl -s "localhost:8080/unidades/$RECIFE/estoque" -
 p "16. entrada zero";        curl -s -X POST localhost:8080/unidades/$RECIFE/estoque/movimentacoes \
   -H "Authorization: Bearer $GERENTE" -H 'Content-Type: application/json' \
   -d "{\"produtoId\":\"$TAPIOCA\",\"tipo\":\"ENTRADA\",\"quantidade\":0}" | jq -c '{error,details}'
+p "17. pedido sem canal";    curl -s -X POST localhost:8080/pedidos -H "Authorization: Bearer $TOKEN" \
+  -H 'Content-Type: application/json' \
+  -d "{\"unidadeId\":\"$RECIFE\",\"itens\":[{\"produtoId\":\"$TAPIOCA\",\"quantidade\":1}]}" | jq -c '{error,details}'
+p "18. pedido sem estoque";  curl -s -X POST localhost:8080/pedidos -H "Authorization: Bearer $TOKEN" \
+  -H 'Content-Type: application/json' \
+  -d "{\"unidadeId\":\"$RECIFE\",\"canalPedido\":\"APP\",\"itens\":[{\"produtoId\":\"30000000-0000-0000-0000-000000000006\",\"quantidade\":999}]}" | jq -c '{error,details}'
+p "19. fora do cardapio";    curl -s -X POST localhost:8080/pedidos -H "Authorization: Bearer $TOKEN" \
+  -H 'Content-Type: application/json' \
+  -d "{\"unidadeId\":\"$CARUARU\",\"canalPedido\":\"APP\",\"itens\":[{\"produtoId\":\"30000000-0000-0000-0000-000000000006\",\"quantidade\":1}]}" | jq -c '{error,details}'
+p "20. transicao invalida";  curl -s -X PATCH localhost:8080/pedidos/$PEDIDO_ID/status \
+  -H "Authorization: Bearer $GERENTE" -H 'Content-Type: application/json' \
+  -d '{"status":"AGUARDANDO_PAGAMENTO"}' | jq -c '{error,details}'
+p "21. pedido de outro";     curl -s localhost:8080/pedidos/$PEDIDO_ID -H "Authorization: Bearer $(login gerente.caruaru@raizes.com.br)" | jq -c '{error}'
 echo
 ```
 
