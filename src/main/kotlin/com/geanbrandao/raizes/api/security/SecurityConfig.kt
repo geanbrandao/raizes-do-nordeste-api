@@ -79,8 +79,27 @@ class SecurityConfig(
                     .requestMatchers(HttpMethod.POST, "/usuarios/operadores")
                     .hasAnyRole(Perfil.ADMIN.name, Perfil.GERENTE.name)
                     .requestMatchers("/auditoria/**").hasRole(Perfil.ADMIN.name)
+
+                    // Cardapio vem ANTES das regras de /unidades. A ordem importa:
+                    // o matcher de PUT em unidade e mais generico e, se viesse
+                    // primeiro, engoliria o cardapio e exigiria ADMIN onde gerente
+                    // deveria poder mexer.
+                    .requestMatchers(HttpMethod.PUT, "/unidades/*/cardapio/*")
+                    .hasAnyRole(Perfil.ADMIN.name, Perfil.GERENTE.name)
+                    .requestMatchers(HttpMethod.DELETE, "/unidades/*/cardapio/*")
+                    .hasAnyRole(Perfil.ADMIN.name, Perfil.GERENTE.name)
+
+                    // Unidade em si e so da matriz. O padrão de caminho usa um
+                    // segmento so, para não alcançar sub-recursos sem querer.
                     .requestMatchers(HttpMethod.POST, "/unidades").hasRole(Perfil.ADMIN.name)
-                    .requestMatchers(HttpMethod.PUT, "/unidades/**").hasRole(Perfil.ADMIN.name)
+                    .requestMatchers(HttpMethod.PUT, "/unidades/*").hasRole(Perfil.ADMIN.name)
+
+                    // Catalogo da rede: gerente ajuda a manter, mas so admin inativa.
+                    .requestMatchers(HttpMethod.POST, "/produtos")
+                    .hasAnyRole(Perfil.ADMIN.name, Perfil.GERENTE.name)
+                    .requestMatchers(HttpMethod.PUT, "/produtos/*")
+                    .hasAnyRole(Perfil.ADMIN.name, Perfil.GERENTE.name)
+                    .requestMatchers(HttpMethod.DELETE, "/produtos/*").hasRole(Perfil.ADMIN.name)
 
                     // -------------------------------------------- o resto
                     // Qualquer rota nova que não esteja listada acima cai aqui e
