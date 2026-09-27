@@ -16,6 +16,7 @@ object ErrorCodes {
     const val CONFLITO = "CONFLITO"
     const val ERRO_INTERNO = "ERRO_INTERNO"
     const val LIMITE_DE_REQUISICOES = "LIMITE_DE_REQUISICOES"
+    const val CONFLITO_DE_CONCORRENCIA = "CONFLITO_DE_CONCORRENCIA"
 
     // Autenticação e autorização
     const val NAO_AUTENTICADO = "NAO_AUTENTICADO"

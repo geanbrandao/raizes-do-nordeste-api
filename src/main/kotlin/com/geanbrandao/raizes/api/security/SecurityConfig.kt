@@ -80,6 +80,22 @@ class SecurityConfig(
                     .hasAnyRole(Perfil.ADMIN.name, Perfil.GERENTE.name)
                     .requestMatchers("/auditoria/**").hasRole(Perfil.ADMIN.name)
 
+                    // Estoque, como o cardapio, vem antes das regras de /unidades.
+                    // Do mais especifico para o mais generico, sempre.
+                    .requestMatchers(HttpMethod.POST, "/unidades/*/estoque/movimentacoes")
+                    .hasAnyRole(Perfil.ADMIN.name, Perfil.GERENTE.name, Perfil.ATENDENTE.name)
+                    .requestMatchers(HttpMethod.GET, "/unidades/*/estoque/*/movimentacoes")
+                    .hasAnyRole(Perfil.ADMIN.name, Perfil.GERENTE.name)
+                    // Cozinha precisa ver saldo para saber o que da para preparar,
+                    // mas não movimenta nada.
+                    .requestMatchers(HttpMethod.GET, "/unidades/*/estoque")
+                    .hasAnyRole(
+                        Perfil.ADMIN.name,
+                        Perfil.GERENTE.name,
+                        Perfil.ATENDENTE.name,
+                        Perfil.COZINHA.name,
+                    )
+
                     // Cardapio vem ANTES das regras de /unidades. A ordem importa:
                     // o matcher de PUT em unidade e mais generico e, se viesse
                     // primeiro, engoliria o cardapio e exigiria ADMIN onde gerente

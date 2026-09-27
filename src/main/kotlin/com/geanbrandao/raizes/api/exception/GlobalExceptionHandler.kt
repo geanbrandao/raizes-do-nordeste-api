@@ -9,6 +9,7 @@ import org.springframework.dao.DataIntegrityViolationException
 import org.springframework.http.HttpStatus
 import org.springframework.http.ResponseEntity
 import org.springframework.http.converter.HttpMessageNotReadableException
+import org.springframework.orm.ObjectOptimisticLockingFailureException
 import org.springframework.security.access.AccessDeniedException
 import org.springframework.web.bind.MethodArgumentNotValidException
 import org.springframework.web.bind.MissingServletRequestParameterException
@@ -132,6 +133,30 @@ class GlobalExceptionHandler {
             HttpStatus.FORBIDDEN,
             ErrorCodes.SEM_PERMISSAO,
             "Seu perfil não tem permissão para esta operação.",
+            request,
+        )
+    }
+
+    /**
+     * Duas requisições mexeram na mesma linha ao mesmo tempo.
+     *
+     * Acontece no estoque em horario de pico: dois pedidos baixando o mesmo item no
+     * mesmo instante. O lock otimista das entidades faz a segunda gravação falhar em
+     * vez de sobrescrever a primeira, e e isso que impede o saldo de ficar errado.
+     *
+     * Devolve 409 porque não e erro de quem chamou: a requisição estava correta e
+     * repetir tem boa chance de funcionar.
+     */
+    @ExceptionHandler(ObjectOptimisticLockingFailureException::class)
+    fun tratarConflitoDeConcorrencia(
+        ex: ObjectOptimisticLockingFailureException,
+        request: HttpServletRequest,
+    ): ResponseEntity<ErrorResponse> {
+        logger.warn("Conflito de concorrencia em {}: {}", request.requestURI, ex.message)
+        return montar(
+            HttpStatus.CONFLICT,
+            ErrorCodes.CONFLITO_DE_CONCORRENCIA,
+            "Outra operação alterou este registro ao mesmo tempo. Tente novamente.",
             request,
         )
     }
