@@ -2,9 +2,12 @@ package com.geanbrandao.raizes.api.service
 
 import com.fasterxml.jackson.databind.ObjectMapper
 import com.geanbrandao.raizes.api.config.ContextoRequisicao
+import com.geanbrandao.raizes.api.dto.LogAuditoriaResponse
+import com.geanbrandao.raizes.api.dto.PaginaResponse
 import com.geanbrandao.raizes.api.entity.LogAuditoriaEntity
 import com.geanbrandao.raizes.api.repository.LogAuditoriaRepository
 import org.slf4j.LoggerFactory
+import org.springframework.data.domain.Pageable
 import org.springframework.stereotype.Service
 import org.springframework.transaction.annotation.Transactional
 import java.util.UUID
@@ -62,6 +65,39 @@ class AuditoriaService(
         logRepository.save(registro)
         logger.debug("Auditoria: {} em {} {}", acao, entidade, entidadeId)
     }
+
+    /**
+     * Consulta a trilha, do registro mais recente para o mais antigo.
+     *
+     * @param usuarioId Filtra por quem fez a ação. Nulo traz todos.
+     * @param entidade Tipo de registro afetado. Nulo traz todos. Aceita minuscula.
+     * @param pageable Pagina e tamanho, montados pelo controller.
+     * @return Pagina de registros da trilha.
+     */
+    @Transactional(readOnly = true)
+    fun consultar(
+        usuarioId: UUID?,
+        entidade: String?,
+        pageable: Pageable,
+    ): PaginaResponse<LogAuditoriaResponse> = PaginaResponse.de(
+        logRepository.buscarComFiltros(
+            usuarioId = usuarioId,
+            entidade = entidade?.trim()?.uppercase(),
+            pageable = pageable,
+        ),
+    ) { it.paraResponse() }
+
+    private fun LogAuditoriaEntity.paraResponse() = LogAuditoriaResponse(
+        id = id,
+        usuarioId = usuarioId,
+        acao = acao,
+        entidade = entidade,
+        entidadeId = entidadeId,
+        dadosAnteriores = dadosAnteriores,
+        dadosNovos = dadosNovos,
+        ip = ip,
+        criadoEm = criadoEm,
+    )
 
     private fun paraJson(dados: Map<String, Any?>): String = runCatching {
         objectMapper.writeValueAsString(dados)

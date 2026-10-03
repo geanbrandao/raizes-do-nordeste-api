@@ -4,7 +4,7 @@ import com.geanbrandao.raizes.api.dto.LogAuditoriaResponse
 import com.geanbrandao.raizes.api.dto.PaginaResponse
 import com.geanbrandao.raizes.api.dto.ParametrosPaginacao
 import com.geanbrandao.raizes.api.exception.ErrorResponse
-import com.geanbrandao.raizes.api.repository.LogAuditoriaRepository
+import com.geanbrandao.raizes.api.service.AuditoriaService
 import io.swagger.v3.oas.annotations.Operation
 import io.swagger.v3.oas.annotations.Parameter
 import io.swagger.v3.oas.annotations.media.Content
@@ -35,7 +35,7 @@ import java.util.UUID
 @RequestMapping("/auditoria")
 @Tag(name = "Auditoria", description = "Trilha das ações sensiveis (somente ADMIN)")
 class AuditoriaController(
-    private val logRepository: LogAuditoriaRepository,
+    private val auditoriaService: AuditoriaService,
 ) {
 
     /**
@@ -73,23 +73,9 @@ class AuditoriaController(
         @RequestParam(required = false) entidade: String?,
         @RequestParam(defaultValue = "1") page: Int,
         @RequestParam(defaultValue = "10") limit: Int,
-    ): PaginaResponse<LogAuditoriaResponse> = PaginaResponse.de(
-        logRepository.buscarComFiltros(
-            usuarioId = usuarioId,
-            entidade = entidade?.trim()?.uppercase(),
-            pageable = ParametrosPaginacao.de(page, limit),
-        ),
-    ) {
-        LogAuditoriaResponse(
-            id = it.id,
-            usuarioId = it.usuarioId,
-            acao = it.acao,
-            entidade = it.entidade,
-            entidadeId = it.entidadeId,
-            dadosAnteriores = it.dadosAnteriores,
-            dadosNovos = it.dadosNovos,
-            ip = it.ip,
-            criadoEm = it.criadoEm,
-        )
-    }
+    ): PaginaResponse<LogAuditoriaResponse> = auditoriaService.consultar(
+        usuarioId = usuarioId,
+        entidade = entidade,
+        pageable = ParametrosPaginacao.de(page, limit),
+    )
 }
