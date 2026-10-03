@@ -11,7 +11,15 @@ Vira a base da seção de execução do README na entrega final.
 Pré-requisitos já conferidos nesta máquina: Docker Desktop instalado, Java 17,
 `jq` disponível, portas 8080 e 5432 livres.
 
-**Estado atual:** 11 controllers, 38 operações HTTP, 193 testes automatizados.
+> **Regra: toda validacao comeca com banco limpo.** As secoes 4.2, 4.5 e 4.6 alteram
+> preco, estoque e cadastro de proposito — e o que elas demonstram. Os valores esperados
+> no resto do documento partem do seed, entao uma base reaproveitada faz a conta nao
+> fechar sem que exista nada errado na API. Se voce parou no meio e vai retomar, nao
+> continue de onde parou: recrie o banco e comece da secao 1.
+
+**Estado atual:** 11 controllers, 30 rotas, 38 operações HTTP, 196 testes automatizados.
+
+Este roteiro foi executado de ponta a ponta contra Postgres real, em banco criado do zero.
 
 ---
 
@@ -38,16 +46,27 @@ e espere o ícone da baleia ficar estável.
 docker info >/dev/null 2>&1 && echo "docker pronto" || echo "docker ainda subindo"
 ```
 
-Com o daemon no ar:
+Com o daemon no ar, suba **sempre apagando o banco anterior**:
 
 ```bash
-cd ~/Documents/faculdade/TCC/raizes-do-nordeste-api && docker compose up --build
+cd ~/Documents/faculdade/TCC/raizes-do-nordeste-api && docker compose down -v && docker compose up --build
 ```
+
+O `-v` e a parte que importa: ele apaga o volume do Postgres. Sem ele, `down` e `up`
+preservam o banco, e voce recomeca sobre os dados da validacao anterior — precos
+alterados, estoque consumido, usuarios de teste. Com ele, o Flyway recria o schema e
+reaplica o seed, e todo numero esperado neste documento passa a valer.
+
+Rodar isso num banco que ainda nao existe tambem funciona: o `down -v` nao reclama de
+volume ausente. Ou seja, e sempre o comando certo para comecar, inclusive na primeira vez.
 
 O primeiro build demora alguns minutos: o Dockerfile roda `./gradlew bootJar` dentro do
 container e baixa o Gradle e as dependências do zero. As próximas vezes usam cache.
 
 Deixe esse terminal aberto mostrando o log e use outro para os comandos seguintes.
+
+Se preferir nao ocupar um terminal com o log, troque o `up --build` por `up --build -d` e
+acompanhe com `docker compose logs -f app` quando precisar.
 
 **O que procurar no log**, nessa ordem:
 
@@ -253,6 +272,10 @@ api -X POST localhost:8080/auth/refresh -H 'Content-Type: application/json' \
 
 O segundo tem que falhar. É a rotação funcionando: refresh usado não vale mais.
 
+Se o token renovado sair identico ao do login, não e defeito: o JWT carrega o instante
+de emissão em segundos, e as duas chamadas cairam no mesmo segundo. O que importa aqui e
+a segunda tentativa falhar.
+
 ---
 
 ### 4.2 Usuários — cadastro e verificação de e-mail (202 → 204 → 200)
@@ -287,10 +310,9 @@ api -X POST localhost:8080/auth/login -H 'Content-Type: application/json' \
 
 ```bash
 echo "--- email novo:"; api -X POST localhost:8080/usuarios -H 'Content-Type: application/json' \
-  -d '{"nome":"Fulano","email":"novo.endereco@exemplo.com","senha":"Senha@123"}'
-echo; echo "--- email existente:"; api -X POST localhost:8080/usuarios -H 'Content-Type: application/json' \
-  -d '{"nome":"Outra Maria","email":"cliente@exemplo.com","senha":"Senha@123"}'
-echo
+  -d '{"nome":"Fulano","email":"novo.endereco@exemplo.com","senha":"Senha@123"}' | jq -c
+echo "--- email existente:"; api -X POST localhost:8080/usuarios -H 'Content-Type: application/json' \
+  -d '{"nome":"Outra Maria","email":"cliente@exemplo.com","senha":"Senha@123"}' | jq -c
 ```
 
 **Cadastro de operador (201, só ADMIN e GERENTE)**
@@ -378,10 +400,17 @@ BOLO=30000000-0000-0000-0000-000000000006
 curl -s -o /dev/null -w "inativar: %{http_code}\n" -X DELETE localhost:8080/produtos/$BOLO \
   -H "Authorization: Bearer $ADMIN"
 echo "--- sumiu da listagem:"
-api localhost:8080/produtos -H "Authorization: Bearer $ADMIN" | jq .totalItens
+api "localhost:8080/produtos?limit=100" -H "Authorization: Bearer $ADMIN" \
+  | jq '{totalItens, boloNaLista: ([.conteudo[].nome] | any(. == "Bolo de rolo"))}'
 echo "--- mas continua existindo:"
 api localhost:8080/produtos/$BOLO -H "Authorization: Bearer $ADMIN" | jq '{nome,ativo}'
 ```
+
+Esperado: `boloNaLista: false` e `totalItens: 10`.
+
+O `10` aqui e coincidencia e nao prova nada: eram 10 produtos do seed, a Pamonha do passo
+anterior virou 11, e inativar o bolo devolveu a contagem para 10. Por isso o comando
+pergunta direto se o bolo esta na lista, em vez de confiar no total.
 
 O produto sai da listagem mas continua acessível por id, com `ativo: false`. Apagar de
 verdade quebraria todo pedido antigo que aponta para ele.
@@ -709,7 +738,9 @@ id2=$(api -X POST localhost:8080/pedidos/$P4/pagamentos -H "Authorization: Beare
 
 ### 4.9 Fidelidade e LGPD
 
-> Precisa das variáveis da seção **4.0**.
+> Precisa das variáveis da seção **4.0** e das funções `novoPedido` e `pagar`, definidas
+> no primeiro bloco da seção **4.8**. Se aparecer `novoPedido: command not found`, rode
+> aquele bloco antes.
 
 O ponto desta seção não é o saldo, é a **base legal**: pontuar depende de saber quem é o
 cliente e do que ele consome, e isso é tratamento de dado pessoal. Sem consentimento
@@ -791,9 +822,17 @@ done
 **O antes e o depois de uma mudança de status**
 
 ```bash
-api "localhost:8080/auditoria?entidade=PEDIDO&limit=5" -H "Authorization: Bearer $ADMIN" \
+api "localhost:8080/auditoria?entidade=PEDIDO&limit=100" -H "Authorization: Bearer $ADMIN" \
   | jq '[.conteudo[] | select(.acao=="STATUS_ALTERADO") | {acao,dadosAnteriores,dadosNovos}]'
 ```
+
+Esperado: as quatro transições da secao 4.7 (`PAGO`, `EM_PREPARO`, `PRONTO`, `ENTREGUE`),
+cada uma com o status de antes e o de depois.
+
+O `limit=100` e necessario: a rota filtra por entidade, não por acao, e o `select` do `jq`
+trabalha so sobre a pagina que voltou. Com uma pagina curta, os registros de criação de
+pedido ocupam tudo e o resultado sai `[]` — parecendo que a trilha não guarda o antes e o
+depois, quando ela guarda.
 
 **A trilha não tem rota de escrita nem de exclusão**
 
@@ -812,7 +851,9 @@ atrás — trilha que falha em silêncio não serve como prova.
 
 ## 5. Erros
 
-> Precisa das variáveis da seção **4.0**.
+> **Depende das seções anteriores.** Alem das variáveis da **4.0**, estes casos usam o
+> `$PEDIDO_ID` criado na **4.7** (casos 20 e 21) e as funções `novoPedido` e `pagar` da
+> **4.8** (casos 22 e 24). Rode a secao 4 inteira, na ordem, antes desta.
 
 Todos devolvem o mesmo formato: `error`, `message`, `details[]`, `timestamp`, `path`,
 `requestId`.
@@ -831,7 +872,7 @@ Todos devolvem o mesmo formato: `error`, `message`, `details[]`, `timestamp`, `p
 | 10 | Enum inválido | 400 `REQUISICAO_INVALIDA` |
 | 11 | UUID mal formado | 400 `REQUISICAO_INVALIDA` |
 | 12 | Paginação inválida | 400 `REQUISICAO_INVALIDA` |
-| 13 | Código de verificação errado | 400 `CODIGO_VERIFICACAO_INVALIDO` |
+| 13 | Código de verificação errado, em conta **ja verificada** | 400 `CODIGO_VERIFICACAO_INVALIDO` — a mesma resposta de um e-mail que não existe, para o 204 não revelar quais contas existem |
 | 14 | Saída maior que o saldo | 409 `ESTOQUE_INSUFICIENTE` |
 | 15 | Cliente acessando estoque | 403 `SEM_PERMISSAO` |
 | 16 | Entrada de quantidade zero | 422 `VALIDACAO` |
@@ -929,18 +970,19 @@ Esse id também aparece no log do container, o que permite achar a requisição 
 
 ## 6. Encerrar
 
-```bash
-cd ~/Documents/faculdade/TCC/raizes-do-nordeste-api && docker compose down
-```
-
-Para os containers e **mantém** o volume do banco — ao subir de novo, os dados continuam
-lá e o Flyway não reaplica as migrations.
-
-Para começar do zero (necessário se alguma migration for alterada):
+Encerre apagando o banco, para a proxima validacao comecar limpa:
 
 ```bash
 cd ~/Documents/faculdade/TCC/raizes-do-nordeste-api && docker compose down -v
 ```
+
+Sem o `-v`, o `down` para os containers e **mantem** o volume: ao subir de novo os dados
+da validacao continuam la, o Flyway nao reaplica nada, e os valores esperados nas secoes
+4 e 5 nao batem mais. Guarde antes o que for virar evidencia na entrega — print, resposta
+salva, o que for — porque o `-v` apaga tudo.
+
+Se precisar parar no meio e retomar depois, pare com `-v` do mesmo jeito e recomece da
+secao 1. Sai mais barato que descobrir na secao 4.7 que o estoque acabou.
 
 ---
 
