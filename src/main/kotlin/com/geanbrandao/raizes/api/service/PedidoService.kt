@@ -217,8 +217,11 @@ class PedidoService(
                 details = listOf(
                     ErrorDetail(
                         "status",
-                        "a partir de ${pedido.status}, os status possiveis são: " +
-                            pedido.status.transicoesPermitidas().joinToString(", "),
+                        // Status final não tem para onde ir, e a lista vazia deixava a
+                        // mensagem terminando em dois pontos sem nada depois.
+                        pedido.status.transicoesPermitidas().takeIf { it.isNotEmpty() }
+                            ?.let { "a partir de ${pedido.status}, os status possiveis são: ${it.joinToString(", ")}" }
+                            ?: "${pedido.status} e status final, não muda mais",
                     ),
                 ),
             )

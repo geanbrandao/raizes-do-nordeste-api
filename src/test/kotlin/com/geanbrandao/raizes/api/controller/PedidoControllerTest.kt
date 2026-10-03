@@ -342,6 +342,26 @@ class PedidoControllerTest {
     }
 
     @Test
+    fun `pedido entregue avisa que o status e final em vez de listar nada`() {
+        val cliente = autenticar("cliente@exemplo.com")
+        val pedidoId = criarPedido(cliente, recife, "APP", tapioca to 1).get("id").asText()
+        val gerente = autenticar("gerente.recife@raizes.com.br")
+        listOf("PAGO", "EM_PREPARO", "PRONTO", "ENTREGUE").forEach { destino ->
+            mockMvc.perform(
+                patch("/pedidos/$pedidoId/status").header("Authorization", "Bearer $gerente")
+                    .contentType(MediaType.APPLICATION_JSON).content("""{"status":"$destino"}"""),
+            ).andExpect(status().isOk)
+        }
+
+        mockMvc.perform(
+            patch("/pedidos/$pedidoId/status").header("Authorization", "Bearer $gerente")
+                .contentType(MediaType.APPLICATION_JSON).content("""{"status":"EM_PREPARO"}"""),
+        )
+            .andExpect(status().isConflict)
+            .andExpect(jsonPath("$.details[0].issue").value("ENTREGUE e status final, não muda mais"))
+    }
+
+    @Test
     fun `T13 - transicao invalida devolve 409 dizendo o que e possivel`() {
         val cliente = autenticar("cliente@exemplo.com")
         val pedidoId = criarPedido(cliente, recife, "APP", tapioca to 1).get("id").asText()
