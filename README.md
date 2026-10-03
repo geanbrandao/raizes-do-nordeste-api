@@ -249,11 +249,23 @@ A coleção completa está versionada em [`postman/`](postman/):
 | [`raizes-do-nordeste.postman_environment.json`](postman/raizes-do-nordeste.postman_environment.json) | Ambiente local (`baseUrl` e afins) |
 | [`openapi.json`](postman/openapi.json) | Contrato OpenAPI 3.1 — importável em qualquer cliente |
 
-### Como usar
+### Como usar — Postman
 
 1. Suba a API com `docker compose down -v && docker compose up --build`
-2. No Postman: **Import** → arraste os dois arquivos
+2. **Import** → arraste os dois arquivos
 3. Abra o **Collection Runner**, selecione a coleção e clique em **Run**
+
+### Como usar — Insomnia
+
+1. Suba a API com `docker compose down -v && docker compose up --build`
+2. **Import** → selecione `raizes-do-nordeste.postman_collection.json`
+3. Clique no **nome da coleção** e escolha **Run Collection**
+4. Na aba **Request Order**, deixe a ordem como veio e clique em **Run**
+
+Os resultados aparecem na aba **Console**, no painel da direita.
+
+Importe o `openapi.json` só se quiser **ler** o contrato: ele vira um documento de Design,
+que mostra schemas e rotas mas não executa a coleção.
 
 As pastas estão na ordem de execução, e cada requisição guarda sozinha o que a próxima
 precisa — tokens, ids de pedido, de pagamento e de consentimento. **Não é preciso copiar e
@@ -289,7 +301,7 @@ que encadeiam os tokens e os ids sozinhos.
 |---|---|
 | **Postman** | Testado aqui: 93 requisições, 202 asserções, 0 falhas |
 | **Newman** (linha de comando) | Testado aqui, mesmo resultado. Não precisa de interface gráfica |
-| **Insomnia 9.3+** | Importa a coleção, e a documentação do Kong diz que os *after-response scripts* vindos do Postman funcionam. **Não verifiquei pessoalmente** |
+| **Insomnia 13.3** | Importa a coleção com as 12 pastas, e o `openapi.json` passa no *Default OAS Ruleset* sem erro nem aviso. A execução dos *after-response scripts* vindos do Postman é documentada pelo Kong |
 | **Bruno, Hoppscotch, Thunder Client e outros** | Importam as requisições e as pastas. Os scripts podem não rodar |
 
 Se os scripts não rodarem no seu cliente, nada quebra de forma silenciosa: o que se perde é
