@@ -3,9 +3,8 @@ package com.geanbrandao.raizes.api.controller
 import com.geanbrandao.raizes.api.dto.CallbackPagamentoRequest
 import com.geanbrandao.raizes.api.dto.PagamentoResponse
 import com.geanbrandao.raizes.api.dto.SolicitarPagamentoRequest
-import com.geanbrandao.raizes.api.exception.ErrorCodes
 import com.geanbrandao.raizes.api.exception.ErrorResponse
-import com.geanbrandao.raizes.api.exception.NaoAutenticadoException
+import com.geanbrandao.raizes.api.security.AssinaturaCallbackGateway
 import com.geanbrandao.raizes.api.security.UsuarioAutenticado
 import com.geanbrandao.raizes.api.service.PagamentoService
 import io.swagger.v3.oas.annotations.Operation
@@ -17,7 +16,6 @@ import io.swagger.v3.oas.annotations.security.SecurityRequirement
 import io.swagger.v3.oas.annotations.security.SecurityRequirements
 import io.swagger.v3.oas.annotations.tags.Tag
 import jakarta.validation.Valid
-import org.springframework.beans.factory.annotation.Value
 import org.springframework.http.HttpStatus
 import org.springframework.security.core.annotation.AuthenticationPrincipal
 import org.springframework.web.bind.annotation.GetMapping
@@ -28,7 +26,6 @@ import org.springframework.web.bind.annotation.RequestHeader
 import org.springframework.web.bind.annotation.RequestMapping
 import org.springframework.web.bind.annotation.ResponseStatus
 import org.springframework.web.bind.annotation.RestController
-import java.security.MessageDigest
 import java.util.UUID
 
 /**
@@ -40,7 +37,7 @@ import java.util.UUID
 @Tag(name = "Pagamentos", description = "Solicitação ao gateway simulado e retorno")
 class PagamentoController(
     private val pagamentoService: PagamentoService,
-    @Value("\${app.pagamento.segredo-callback:}") private val segredoCallback: String,
+    private val assinaturaGateway: AssinaturaCallbackGateway,
 ) {
 
     /**
@@ -128,9 +125,7 @@ class PagamentoController(
      *
      * A rota e publica porque quem chama e o gateway, que não tem conta nesta API. Em
      * vez de token, ela e protegida por um segredo combinado, enviado no header
-     * `X-Gateway-Assinatura`. A comparação usa [MessageDigest.isEqual], que gasta o
-     * mesmo tempo acertando ou errando: comparar string com `==` sai mais cedo no
-     * primeiro caractere diferente e entrega o segredo aos poucos.
+     * `X-Gateway-Assinatura`, conferido por [AssinaturaCallbackGateway].
      *
      * @param assinatura Segredo combinado com o gateway.
      * @param request Pagamento, resultado e dados da transação.
@@ -164,29 +159,7 @@ class PagamentoController(
         @RequestHeader(value = "X-Gateway-Assinatura", required = false) assinatura: String?,
         @Valid @RequestBody request: CallbackPagamentoRequest,
     ): PagamentoResponse {
-        exigirAssinaturaValida(assinatura)
+        assinaturaGateway.exigirValida(assinatura)
         return pagamentoService.processarCallback(request)
-    }
-
-    /** Confere o segredo do webhook em tempo constante. */
-    private fun exigirAssinaturaValida(assinatura: String?) {
-        val esperado = segredoCallback
-        if (esperado.isBlank()) {
-            throw NaoAutenticadoException(
-                error = ErrorCodes.NAO_AUTENTICADO,
-                message = "Callback de pagamento não esta configurado neste ambiente.",
-            )
-        }
-        val recebido = assinatura.orEmpty()
-        val confere = MessageDigest.isEqual(
-            recebido.toByteArray(Charsets.UTF_8),
-            esperado.toByteArray(Charsets.UTF_8),
-        )
-        if (!confere) {
-            throw NaoAutenticadoException(
-                error = ErrorCodes.NAO_AUTENTICADO,
-                message = "Assinatura do gateway invalida.",
-            )
-        }
     }
 }
