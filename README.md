@@ -245,9 +245,9 @@ A coleção completa está versionada em [`postman/`](postman/):
 
 | Arquivo | O que é |
 |---|---|
-| [`raizes-do-nordeste.postman_collection.json`](postman/raizes-do-nordeste.postman_collection.json) | 93 requisições em 12 pastas |
+| [`raizes-do-nordeste.postman_collection.json`](postman/raizes-do-nordeste.postman_collection.json) | **A coleção executável** — 93 requisições em 12 pastas, 202 asserções |
 | [`raizes-do-nordeste.postman_environment.json`](postman/raizes-do-nordeste.postman_environment.json) | Ambiente local (`baseUrl` e afins) |
-| [`openapi.json`](postman/openapi.json) | Contrato OpenAPI 3.1 — importável em qualquer cliente |
+| [`openapi.json`](postman/openapi.json) | Contrato OpenAPI 3.1, para **ler**. Não executa nada |
 
 ### Como usar — Postman
 
@@ -264,8 +264,21 @@ A coleção completa está versionada em [`postman/`](postman/):
 
 Os resultados aparecem na aba **Console**, no painel da direita.
 
-Importe o `openapi.json` só se quiser **ler** o contrato: ele vira um documento de Design,
-que mostra schemas e rotas mas não executa a coleção.
+### Cuidado para não rodar o arquivo errado
+
+Se você importar os dois arquivos, aparecem duas coisas parecidas na barra lateral:
+
+| Na barra lateral | O que é |
+|---|---|
+| **Raizes do Nordeste — TESTES (rode esta)** | A coleção. Pastas numeradas de `0. Setup` a `11. Erros` |
+| **API Raizes do Nordeste 0.1.0** | O documento de Design, vindo do `openapi.json` |
+
+**O Runner só funciona na primeira.** O documento de Design não tem scripts, não tem ordem
+de execução e não faz login: rodar o Runner nele devolve `Results 0/0` e **401 em quase
+todas** as requisições — parece que a API está quebrada, mas é só a coleção errada.
+
+Se estiver em dúvida sobre qual é qual: a certa tem pastas numeradas e requisições com nomes
+como `T06 — Criar pedido (201)`.
 
 As pastas estão na ordem de execução, e cada requisição guarda sozinha o que a próxima
 precisa — tokens, ids de pedido, de pagamento e de consentimento. **Não é preciso copiar e
