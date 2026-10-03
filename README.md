@@ -69,16 +69,40 @@ mesma transação da ação.
 
 ## Requisitos
 
-Para subir com Docker, só o Docker é necessário — o build do Java acontece dentro do
-container.
+**Só o Docker é obrigatório.** O build do Java acontece dentro do container, então não é
+preciso ter Java, Kotlin, Gradle nem PostgreSQL instalados na máquina.
 
-| Ferramenta | Para quê |
+| Ferramenta | Obrigatória? | Para quê |
+|---|---|---|
+| Docker Desktop (ou Docker Engine + Compose) | **Sim** | Subir API e banco |
+| Java 17 | Não | Só para rodar os testes fora do container |
+| `jq` | Não | Opcional, deixa as respostas no terminal legíveis |
+
+Portas usadas: **8080** (API) e **5432** (Postgres). Se já houver algo nelas, pare o outro
+serviço ou altere a porta no `docker-compose.yml`.
+
+### Instalando o Docker
+
+| Sistema | Como instalar |
 |---|---|
-| Docker e Docker Compose | Subir API e banco |
-| Java 17 | Só para rodar os testes fora do container |
-| `jq` | Opcional, para ler as respostas no terminal |
+| **Windows** | [Docker Desktop para Windows](https://docs.docker.com/desktop/install/windows-install/) — requer WSL 2, que o próprio instalador configura |
+| **macOS** | [Docker Desktop para Mac](https://docs.docker.com/desktop/install/mac-install/) — escolha o instalador do seu chip (Apple Silicon ou Intel) |
+| **Linux** | [Docker Engine](https://docs.docker.com/engine/install/) + [plugin do Compose](https://docs.docker.com/compose/install/linux/), ou [Docker Desktop para Linux](https://docs.docker.com/desktop/install/linux-install/) |
 
-Portas usadas: **8080** (API) e **5432** (Postgres).
+Depois de instalar, confira que está tudo no lugar:
+
+```bash
+docker --version
+docker compose version
+```
+
+O segundo comando precisa responder **v2.x**. Este projeto usa o formato do Compose v2
+(`docker compose`, com espaço). O `docker-compose` v1 — com hífen, descontinuado — não lê
+este arquivo corretamente.
+
+**No Windows**, o Docker Desktop precisa estar aberto e com o ícone da baleia estável antes
+de qualquer comando. **No Linux**, se o `docker` pedir permissão, use `sudo` ou adicione seu
+usuário ao grupo: `sudo usermod -aG docker $USER` e reabra a sessão.
 
 ### Dependências principais
 
@@ -125,6 +149,11 @@ git clone https://github.com/geanbrandao/raizes-do-nordeste-api.git
 cd raizes-do-nordeste-api
 docker compose down -v && docker compose up --build
 ```
+
+> **Windows:** rode estes comandos no **Git Bash**, no **WSL** ou no **PowerShell**. Se usar
+> PowerShell, atenção ao `curl`: lá ele é apelido do `Invoke-WebRequest`, que tem outra
+> sintaxe. Para os comandos de validação deste projeto, prefira o Git Bash — já vem com o
+> instalador do Git para Windows e aceita tudo como está escrito aqui.
 
 O `down -v` apaga o volume do banco antes de subir. Use sempre: as validações alteram preço e
 estoque de propósito, e um banco reaproveitado faz os valores esperados na documentação não
@@ -193,7 +222,8 @@ entrega o mapa completo da API a qualquer visitante.
 ## Como rodar os testes
 
 ```bash
-./gradlew test
+./gradlew test          # macOS, Linux, Git Bash e WSL
+gradlew.bat test        # Windows, no CMD ou PowerShell
 ```
 
 Esperado: `BUILD SUCCESSFUL`, **196 testes, 0 falhas**. Relatório navegável em

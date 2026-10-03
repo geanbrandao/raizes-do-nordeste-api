@@ -8,8 +8,14 @@ Vira a base da seção de execução do README na entrega final.
 > Cada etapa nova acrescenta uma subseção em **4. Fluxos por recurso** e alguns casos em
 > **5. Erros** — assim, montar a coleção na Etapa 10 vira transcrição.
 
-Pré-requisitos já conferidos nesta máquina: Docker Desktop instalado, Java 17,
-`jq` disponível, portas 8080 e 5432 livres.
+Pré-requisitos: Docker instalado e rodando, `jq` disponível, portas 8080 e 5432 livres.
+Java 17 só é necessário para a seção 0. Como instalar o Docker em cada sistema: ver o
+[README](README.md#instalando-o-docker).
+
+> **Em que terminal rodar.** Os comandos deste documento são de shell POSIX. No macOS e no
+> Linux, qualquer terminal serve. No **Windows**, use o **Git Bash** (vem com o instalador do
+> Git) ou o **WSL** — no PowerShell, `curl` e apelido do `Invoke-WebRequest` e tem outra
+> sintaxe, entao os comandos nao funcionam como estao escritos.
 
 > **Regra: toda validacao comeca com banco limpo.** As secoes 4.2, 4.5 e 4.6 alteram
 > preco, estoque e cadastro de proposito — e o que elas demonstram. Os valores esperados
