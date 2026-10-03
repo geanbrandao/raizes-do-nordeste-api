@@ -37,6 +37,13 @@ class VerificacaoEmailService(
     private val logger = LoggerFactory.getLogger(VerificacaoEmailService::class.java)
     private val sorteio = SecureRandom()
 
+    /**
+     * Avisa no boot quando o codigo de verificação esta fixo.
+     *
+     * Codigo previsivel e proposital em desenvolvimento, para dar para testar o fluxo
+     * sem caixa de entrada. Em producão seria furo grave, então o aviso fica no log de
+     * inicialização, onde não passa batido.
+     */
     @PostConstruct
     fun avisarSobreCodigoFixo() {
         if (codigoFixo.isNotBlank()) {

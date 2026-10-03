@@ -55,6 +55,13 @@ class EnviadorDeEmailLog(
     /** Modo de desenvolvimento: codigo fixo e publico, entao pode aparecer no log. */
     private val ehAmbienteDeDesenvolvimento: Boolean get() = codigoFixo.isNotBlank()
 
+    /**
+     * Avisa no boot que nenhum provedor de e-mail real esta configurado.
+     *
+     * Fora de desenvolvimento esta implementação não entrega nada a ninguem e tambem
+     * não escreve o codigo no log. Sem este aviso, o sistema pareceria estar enviando
+     * e-mail e ninguem receberia nada.
+     */
     @PostConstruct
     fun avisarQueNaoHaProvedorReal() {
         if (!ehAmbienteDeDesenvolvimento) {

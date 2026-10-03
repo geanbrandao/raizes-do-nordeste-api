@@ -20,6 +20,17 @@ class RestAccessDeniedHandler(
     private val objectMapper: ObjectMapper,
 ) : AccessDeniedHandler {
 
+    /**
+     * Responde 403 no mesmo formato de erro do resto da API.
+     *
+     * Sem isto o Spring Security devolveria a pagina de erro padrao do container, que
+     * não tem `error`, `requestId` nem `path` — e o cliente teria dois formatos de erro
+     * para tratar.
+     *
+     * @param request Requisição recusada.
+     * @param response Resposta a ser escrita.
+     * @param accessDeniedException Motivo da recusa, vindo do Spring Security.
+     */
     override fun handle(
         request: HttpServletRequest,
         response: HttpServletResponse,

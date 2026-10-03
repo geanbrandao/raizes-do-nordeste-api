@@ -20,6 +20,15 @@ import org.springframework.context.annotation.Configuration
 @Configuration
 class OpenApiConfig {
 
+    /**
+     * Descreve a API para o Swagger UI.
+     *
+     * Declara o esquema `Bearer Auth` para o botão **Authorize** aparecer na tela: com
+     * ele da para colar o token uma vez e testar as rotas protegidas pelo navegador,
+     * sem Postman.
+     *
+     * @return Documento OpenAPI servido em `/v3/api-docs`.
+     */
     @Bean
     fun openApi(): OpenAPI = OpenAPI()
         .info(

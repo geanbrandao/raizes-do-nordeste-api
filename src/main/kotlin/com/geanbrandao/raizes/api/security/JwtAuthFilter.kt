@@ -23,6 +23,18 @@ class JwtAuthFilter(
     private val jwtService: JwtService,
 ) : OncePerRequestFilter() {
 
+    /**
+     * Le o token do header e coloca o usuario no contexto da requisição.
+     *
+     * Token ausente ou invalido não derruba a requisição aqui: o filtro simplesmente
+     * não autentica ninguem e segue. Quem decide se aquela rota exigia autenticação e o
+     * [SecurityConfig], e e de la que sai o 401. Assim o filtro não precisa saber quais
+     * rotas são publicas.
+     *
+     * @param request Requisição que chegou.
+     * @param response Resposta em construção.
+     * @param filterChain Resto da cadeia.
+     */
     override fun doFilterInternal(
         request: HttpServletRequest,
         response: HttpServletResponse,

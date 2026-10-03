@@ -30,6 +30,17 @@ class RequestIdFilter : OncePerRequestFilter() {
         private const val MDC_KEY = "requestId"
     }
 
+    /**
+     * Garante um id para a requisição e deixa ele disponivel para o log e para a resposta.
+     *
+     * Usa o `X-Request-Id` que o cliente mandou, ou sorteia um. O mesmo id vai para o
+     * header da resposta, para o corpo do erro e para o MDC do logback — e isso que
+     * permite pegar o id que o usuario reclamou e achar a linha exata no log.
+     *
+     * @param request Requisição que chegou.
+     * @param response Resposta em construção.
+     * @param filterChain Resto da cadeia.
+     */
     override fun doFilterInternal(
         request: HttpServletRequest,
         response: HttpServletResponse,

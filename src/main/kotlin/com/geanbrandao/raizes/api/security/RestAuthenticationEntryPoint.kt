@@ -21,6 +21,17 @@ class RestAuthenticationEntryPoint(
     private val objectMapper: ObjectMapper,
 ) : AuthenticationEntryPoint {
 
+    /**
+     * Responde 401 no mesmo formato de erro do resto da API.
+     *
+     * Vale tambem para rota que não existe, quando a requisição vem sem token: a
+     * resposta e 401, não 404. Devolver 404 ali diria a quem não se autenticou quais
+     * caminhos existem e quais não, o que e um mapa da API de graca.
+     *
+     * @param request Requisição sem autenticação valida.
+     * @param response Resposta a ser escrita.
+     * @param authException Motivo da recusa, vindo do Spring Security.
+     */
     override fun commence(
         request: HttpServletRequest,
         response: HttpServletResponse,

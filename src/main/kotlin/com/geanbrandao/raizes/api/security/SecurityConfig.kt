@@ -36,9 +36,35 @@ class SecurityConfig(
     private val accessDeniedHandler: RestAccessDeniedHandler,
 ) {
 
+    /**
+     * Algoritmo de hash das senhas.
+     *
+     * BCrypt porque ele e lento de proposito e embute o sal em cada hash. Senha
+     * guardada com SHA ou MD5, que são rapidos, cai para forca bruta em GPU; e sal
+     * proprio por senha impede que duas pessoas com a mesma senha tenham o mesmo hash.
+     *
+     * @return Codificador usado tanto para gravar quanto para conferir senha.
+     */
     @Bean
     fun passwordEncoder(): PasswordEncoder = BCryptPasswordEncoder()
 
+    /**
+     * Monta a cadeia de seguranca da API.
+     *
+     * Duas coisas aqui não são detalhe:
+     *
+     * **A ordem dos matchers importa.** O Spring para no primeiro que casa, então rota
+     * especifica tem que vir antes de rota generica: a regra de
+     * `/unidades/{id}/estoque` precisa aparecer antes do matcher curinga de
+     * `/unidades`, senão ela nunca e alcançada.
+     *
+     * **Vale o default deny.** O `anyRequest().authenticated()` no fim fecha tudo o que
+     * não foi liberado explicitamente. Rota nova nasce protegida: se alguem esquecer de
+     * configurar, o efeito e 401, e não um recurso aberto sem ninguem notar.
+     *
+     * @param http Builder de configuração entregue pelo Spring Security.
+     * @return Cadeia de filtros aplicada a toda requisição.
+     */
     @Bean
     fun filterChain(http: HttpSecurity): SecurityFilterChain {
         http
