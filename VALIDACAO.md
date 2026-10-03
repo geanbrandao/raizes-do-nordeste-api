@@ -153,6 +153,21 @@ Esperado (30 rotas):
 
 ## 4. Fluxos por recurso
 
+> **Os numeros esperados daqui para baixo valem para um banco recem-semeado.** Preco,
+> saldo de estoque e contagem de usuarios sao estado, e as secoes 4.2, 4.5 e 4.6 alteram
+> esse estado de proposito — e justamente o que elas demonstram. Rodar as secoes fora de
+> ordem, ou repetir a validacao sobre uma base ja usada, muda os valores sem que nada
+> esteja errado na API.
+>
+> Se os numeros nao baterem, comece recriando o banco:
+>
+> ```bash
+> docker compose down -v && docker compose up -d
+> ```
+>
+> O `-v` apaga o volume do Postgres; as migrations recriam o schema e o seed. Tudo o que
+> foi criado na validacao anterior se perde, o que e o objetivo.
+
 ### Usuários do seed (senha `Senha@123` para todos)
 
 | E-mail | Perfil | Unidade |
@@ -486,9 +501,11 @@ Esperado: `saldoApos: 35` (50 − 15).
 ```bash
 api -X POST localhost:8080/unidades/$RECIFE/estoque/movimentacoes \
   -H "Authorization: Bearer $GERENTE" -H 'Content-Type: application/json' \
-  -d "{\"produtoId\":\"$TAPIOCA\",\"tipo\":\"AJUSTE\",\"quantidade\":7,\"motivo\":\"Contagem de inventario\"}" \
+  -d "{\"produtoId\":\"$TAPIOCA\",\"tipo\":\"AJUSTE\",\"quantidade\":40,\"motivo\":\"Contagem de inventario\"}" \
   | jq '{tipo,quantidade,saldoApos}'
 ```
+
+Esperado: `saldoApos: 40`, e nao 75 — o ajuste **nao soma**.
 
 Em `AJUSTE` a quantidade **é** o saldo que passa a valer — é o caso da contagem de
 inventário, em que a loja conta a prateleira e informa o que realmente tem. Zero é
@@ -546,13 +563,17 @@ Esperado: `12.90` — o preco do cardapio. O `precoUnitario` enviado é simplesm
 ```bash
 antes=$(api "localhost:8080/unidades/$RECIFE/estoque?limit=100" -H "Authorization: Bearer $GERENTE" \
   | jq --arg p "$TAPIOCA" '.conteudo[] | select(.produtoId==$p) | .saldoAtual')
-curl -s -o /dev/null -X POST localhost:8080/pedidos -H "Authorization: Bearer $TOKEN" \
+api -X POST localhost:8080/pedidos -H "Authorization: Bearer $TOKEN" \
   -H 'Content-Type: application/json' \
-  -d "{\"unidadeId\":\"$RECIFE\",\"canalPedido\":\"APP\",\"itens\":[{\"produtoId\":\"$TAPIOCA\",\"quantidade\":3}]}"
+  -d "{\"unidadeId\":\"$RECIFE\",\"canalPedido\":\"APP\",\"itens\":[{\"produtoId\":\"$TAPIOCA\",\"quantidade\":3}]}" \
+  | jq -c '{id,total,erro:.error}'
 depois=$(api "localhost:8080/unidades/$RECIFE/estoque?limit=100" -H "Authorization: Bearer $GERENTE" \
   | jq --arg p "$TAPIOCA" '.conteudo[] | select(.produtoId==$p) | .saldoAtual')
-echo "saldo antes: $antes / depois: $depois (esperado: 3 a menos)"
+echo "saldo antes: $antes / depois: $depois / caiu: $((antes - depois)) (esperado: 3)"
 ```
+
+Se o `POST` devolver `409 ESTOQUE_INSUFICIENTE` e o saldo nao mexer, o estoque acabou:
+rode o `AJUSTE` da secao 4.6 de novo, ou recrie o banco.
 
 **Multicanalidade: filtrar por canal**
 
