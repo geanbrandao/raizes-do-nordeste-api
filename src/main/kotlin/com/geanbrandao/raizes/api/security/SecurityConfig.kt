@@ -81,7 +81,13 @@ class SecurityConfig(
                     // ------------------------------------ rotas por perfil
                     .requestMatchers(HttpMethod.POST, "/usuarios/operadores")
                     .hasAnyRole(Perfil.ADMIN.name, Perfil.GERENTE.name)
+                    // A trilha mostra o que cada pessoa fez na rede, entao ela
+                    // propria e dado sensivel. So a matriz le.
                     .requestMatchers("/auditoria/**").hasRole(Perfil.ADMIN.name)
+
+                    // Fidelidade e consentimento são do titular: so CLIENTE.
+                    .requestMatchers("/fidelidade/**").hasRole(Perfil.CLIENTE.name)
+                    .requestMatchers("/consentimentos/**").hasRole(Perfil.CLIENTE.name)
 
                     // Estoque, como o cardapio, vem antes das regras de /unidades.
                     // Do mais especifico para o mais generico, sempre.

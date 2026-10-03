@@ -9,6 +9,8 @@ import org.springframework.dao.DataIntegrityViolationException
 import org.springframework.http.HttpStatus
 import org.springframework.http.ResponseEntity
 import org.springframework.http.converter.HttpMessageNotReadableException
+import org.springframework.web.HttpMediaTypeNotSupportedException
+import org.springframework.web.HttpRequestMethodNotSupportedException
 import org.springframework.orm.ObjectOptimisticLockingFailureException
 import org.springframework.security.access.AccessDeniedException
 import org.springframework.web.bind.MethodArgumentNotValidException
@@ -175,6 +177,41 @@ class GlobalExceptionHandler {
             request,
         )
     }
+
+    /**
+     * Metodo HTTP que a rota não aceita.
+     *
+     * Sem este tratamento a exceção caia no catch generico e virava 500, dando a
+     * entender que a API quebrou quando na verdade a requisição e que estava errada.
+     * A resposta inclui os metodos aceitos, para quem esta integrando se corrigir sem
+     * precisar abrir a documentação.
+     */
+    @ExceptionHandler(HttpRequestMethodNotSupportedException::class)
+    fun tratarMetodoNaoPermitido(
+        ex: HttpRequestMethodNotSupportedException,
+        request: HttpServletRequest,
+    ): ResponseEntity<ErrorResponse> {
+        val aceitos = ex.supportedMethods?.joinToString(", ").orEmpty()
+        return montar(
+            HttpStatus.METHOD_NOT_ALLOWED,
+            ErrorCodes.METODO_NAO_PERMITIDO,
+            "Esta rota não aceita o metodo ${ex.method}.",
+            request,
+            if (aceitos.isBlank()) emptyList() else listOf(ErrorDetail("method", "aceitos: $aceitos")),
+        )
+    }
+
+    /** Corpo enviado num formato que a API não le, tipo XML ou form-data. */
+    @ExceptionHandler(HttpMediaTypeNotSupportedException::class)
+    fun tratarTipoDeConteudoNaoSuportado(
+        ex: HttpMediaTypeNotSupportedException,
+        request: HttpServletRequest,
+    ): ResponseEntity<ErrorResponse> = montar(
+        HttpStatus.UNSUPPORTED_MEDIA_TYPE,
+        ErrorCodes.TIPO_DE_CONTEUDO_NAO_SUPORTADO,
+        "A API espera application/json.",
+        request,
+    )
 
     /** Rota que não existe. Sem isso o Spring devolveria um HTML de erro. */
     @ExceptionHandler(NoResourceFoundException::class)

@@ -43,6 +43,7 @@ class PedidoService(
     private val estoqueService: EstoqueService,
     private val campanhaService: CampanhaService,
     private val unidadeService: UnidadeService,
+    private val auditoriaService: AuditoriaService,
 ) {
     private val logger = LoggerFactory.getLogger(PedidoService::class.java)
 
@@ -106,6 +107,19 @@ class PedidoService(
             quantidadePorProduto = itensResolvidos.associate { it.entidade.produtoId to it.entidade.quantidade },
             pedidoId = salvo.id,
             usuarioId = solicitante.id,
+        )
+
+        auditoriaService.registrar(
+            acao = AuditoriaService.Acoes.PEDIDO_CRIADO,
+            entidade = AuditoriaService.Entidades.PEDIDO,
+            entidadeId = salvo.id,
+            usuarioId = solicitante.id,
+            depois = mapOf(
+                "unidadeId" to salvo.unidadeId,
+                "canalPedido" to salvo.canalPedido.name,
+                "total" to salvo.total,
+                "itens" to salvo.itens.size,
+            ),
         )
 
         logger.info(
@@ -221,6 +235,15 @@ class PedidoService(
         pedido.atualizadoEm = LocalDateTime.now()
         val salvo = pedidoRepository.save(pedido)
 
+        auditoriaService.registrar(
+            acao = AuditoriaService.Acoes.STATUS_ALTERADO,
+            entidade = AuditoriaService.Entidades.PEDIDO,
+            entidadeId = pedidoId,
+            usuarioId = solicitante.id,
+            antes = mapOf("status" to anterior.name),
+            depois = mapOf("status" to novoStatus.name),
+        )
+
         logger.info("Pedido {} mudou de {} para {}", pedidoId, anterior, novoStatus)
         return salvo.paraResponse(nomesDosProdutos(listOf(salvo)), null)
     }
@@ -249,9 +272,19 @@ class PedidoService(
 
         estoqueService.devolverDoPedido(pedidoId, solicitante.id)
 
+        val anterior = pedido.status
         pedido.status = StatusPedido.CANCELADO
         pedido.atualizadoEm = LocalDateTime.now()
         val salvo = pedidoRepository.save(pedido)
+
+        auditoriaService.registrar(
+            acao = AuditoriaService.Acoes.PEDIDO_CANCELADO,
+            entidade = AuditoriaService.Entidades.PEDIDO,
+            entidadeId = pedidoId,
+            usuarioId = solicitante.id,
+            antes = mapOf("status" to anterior.name),
+            depois = mapOf("status" to StatusPedido.CANCELADO.name, "total" to salvo.total),
+        )
 
         logger.info("Pedido {} cancelado por {}", pedidoId, solicitante.id)
         return salvo.paraResponse(nomesDosProdutos(listOf(salvo)), null)

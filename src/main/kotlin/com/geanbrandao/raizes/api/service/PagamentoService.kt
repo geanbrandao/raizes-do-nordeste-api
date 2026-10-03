@@ -42,6 +42,8 @@ class PagamentoService(
     private val pedidoRepository: PedidoRepository,
     private val pedidoService: PedidoService,
     private val gateway: GatewayPagamento,
+    private val fidelidadeService: FidelidadeService,
+    private val auditoriaService: AuditoriaService,
 ) {
     private val logger = LoggerFactory.getLogger(PagamentoService::class.java)
 
@@ -111,7 +113,9 @@ class PagamentoService(
         val statusPedido = when (resposta.resultado) {
             ResultadoGateway.APROVADO -> {
                 pagamento.status = StatusPagamento.APROVADO
-                pedidoService.aplicarResultadoDePagamento(pedido, aprovado = true).status
+                val pago = pedidoService.aplicarResultadoDePagamento(pedido, aprovado = true)
+                fidelidadeService.acumularPorPedido(pago)
+                pago.status
             }
             ResultadoGateway.RECUSADO -> {
                 pagamento.status = StatusPagamento.RECUSADO
@@ -124,6 +128,19 @@ class PagamentoService(
                 pedido.status
             }
         }
+
+        auditoriaService.registrar(
+            acao = AuditoriaService.Acoes.PAGAMENTO_SOLICITADO,
+            entidade = AuditoriaService.Entidades.PAGAMENTO,
+            entidadeId = pagamento.id,
+            usuarioId = solicitante.id,
+            depois = mapOf(
+                "pedidoId" to pedido.id,
+                "valor" to pagamento.valor,
+                "metodo" to pagamento.metodo,
+                "resultado" to pagamento.status.name,
+            ),
+        )
 
         return pagamentoRepository.save(pagamento).paraResponse(statusPedido)
     }
@@ -185,7 +202,9 @@ class PagamentoService(
         pagamentoRepository.save(pagamento)
 
         val aprovado = request.resultado == StatusPagamento.APROVADO
-        val statusPedido = pedidoService.aplicarResultadoDePagamento(pedido, aprovado).status
+        val atualizado = pedidoService.aplicarResultadoDePagamento(pedido, aprovado)
+        if (aprovado) fidelidadeService.acumularPorPedido(atualizado)
+        val statusPedido = atualizado.status
 
         logger.info("Callback resolveu o pagamento {} como {}", pagamento.id, request.resultado)
         return pagamento.paraResponse(statusPedido)

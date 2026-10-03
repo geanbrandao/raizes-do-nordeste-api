@@ -39,6 +39,7 @@ class EstoqueService(
     private val produtoRepository: ProdutoRepository,
     private val unidadeService: UnidadeService,
     private val produtoService: ProdutoService,
+    private val auditoriaService: AuditoriaService,
 ) {
     private val logger = LoggerFactory.getLogger(EstoqueService::class.java)
 
@@ -111,6 +112,7 @@ class EstoqueService(
         val estoque = estoqueRepository.findByUnidadeIdAndProdutoId(unidadeId, request.produtoId)
             ?: EstoqueEntity(unidadeId = unidadeId, produtoId = request.produtoId)
 
+        val saldoAnterior = estoque.saldoAtual
         val saldoNovo = when (request.tipo) {
             TipoMovimentacaoEstoque.ENTRADA -> estoque.saldoAtual + request.quantidade
             TipoMovimentacaoEstoque.SAIDA -> {
@@ -135,6 +137,20 @@ class EstoqueService(
                 saldoApos = saldoNovo,
                 motivo = request.motivo?.trim(),
                 usuarioId = solicitante.id,
+            ),
+        )
+
+        auditoriaService.registrar(
+            acao = AuditoriaService.Acoes.ESTOQUE_MOVIMENTADO,
+            entidade = AuditoriaService.Entidades.ESTOQUE,
+            entidadeId = salvo.id,
+            usuarioId = solicitante.id,
+            antes = mapOf("saldo" to saldoAnterior),
+            depois = mapOf(
+                "saldo" to saldoNovo,
+                "tipo" to request.tipo.name,
+                "quantidade" to request.quantidade,
+                "produto" to produto.nome,
             ),
         )
 
