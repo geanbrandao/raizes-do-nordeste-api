@@ -24,6 +24,7 @@ Projeto Multidisciplinar da Trilha Back-End, UNINTER.
 - [Como subir](#como-subir)
 - [Swagger](#swagger)
 - [Como rodar os testes](#como-rodar-os-testes)
+- [Coleção Postman](#coleção-postman)
 - [Usuários do seed](#usuários-do-seed)
 - [Decisões técnicas](#decisões-técnicas)
 - [Padrão de erro](#padrão-de-erro)
@@ -235,6 +236,47 @@ divergência entre migration, entidade e seed quebre o teste, e não a subida em
 
 O roteiro de validação manual, com os fluxos por recurso e 28 cenários de erro, está em
 [VALIDACAO.md](VALIDACAO.md).
+
+---
+
+## Coleção Postman
+
+A coleção completa está versionada em [`postman/`](postman/):
+
+| Arquivo | O que é |
+|---|---|
+| [`raizes-do-nordeste.postman_collection.json`](postman/raizes-do-nordeste.postman_collection.json) | 93 requisições em 12 pastas |
+| [`raizes-do-nordeste.postman_environment.json`](postman/raizes-do-nordeste.postman_environment.json) | Ambiente local (`baseUrl` e afins) |
+
+### Como usar
+
+1. Suba a API com `docker compose down -v && docker compose up --build`
+2. No Postman: **Import** → arraste os dois arquivos
+3. Abra o **Collection Runner**, selecione a coleção e clique em **Run**
+
+As pastas estão na ordem de execução, e cada requisição guarda sozinha o que a próxima
+precisa — tokens, ids de pedido, de pagamento e de consentimento. **Não é preciso copiar e
+colar nada.**
+
+Cada requisição carrega testes automáticos: rodar a coleção inteira executa **202
+asserções**. Se quiser rodar pela linha de comando, sem abrir o Postman:
+
+```bash
+npx newman run postman/raizes-do-nordeste.postman_collection.json
+```
+
+### As 12 pastas
+
+`0. Setup` · `1. Auth` · `2. Usuários` · `3. Unidades` · `4. Produtos` · `5. Cardápio` ·
+`6. Estoque` · `7. Pedidos` · `8. Pagamento` · `9. Fidelidade e LGPD` · `10. Auditoria` ·
+`11. Erros`
+
+A pasta **11. Erros** tem os 29 cenários negativos, cada um conferindo o status **e** o
+código de erro do envelope.
+
+> **Rode contra um banco recém-criado.** As pastas 2, 5 e 6 alteram cadastro, preço e
+> estoque de propósito. Numa segunda rodada sobre o mesmo banco, 6 asserções falham por
+> estado acumulado — a própria descrição da coleção lista quais e por quê.
 
 ---
 
@@ -473,6 +515,7 @@ Dívida consciente, registrada para não parecer esquecimento:
 | Swagger UI | `http://localhost:8080/swagger-ui.html` com a API no ar — ver [Como subir](#como-subir) |
 | OpenAPI | `http://localhost:8080/v3/api-docs` |
 | Roteiro de validação | [VALIDACAO.md](VALIDACAO.md) |
+| Coleção Postman | [`postman/`](postman/) — 93 requisições, 202 asserções |
 | Testes automatizados | `./gradlew test` — 196 testes |
 
 ---
