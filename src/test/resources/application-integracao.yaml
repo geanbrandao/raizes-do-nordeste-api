@@ -28,3 +28,6 @@ app:
     codigo-fixo: "258369"
     validade-horas: 24
     max-tentativas: 5
+  pagamento:
+    segredo-callback: "segredo-de-teste"
+    mock-timeout-ms: 2000

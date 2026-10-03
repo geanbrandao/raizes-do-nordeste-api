@@ -74,6 +74,9 @@ class SecurityConfig(
                         "/v3/api-docs/**",
                     ).permitAll()
                     .requestMatchers("/actuator/health", "/actuator/info").permitAll()
+                    // O gateway não tem conta nesta API. A rota e liberada aqui e
+                    // protegida por segredo combinado no header, dentro do controller.
+                    .requestMatchers(HttpMethod.POST, "/pagamentos/callback").permitAll()
 
                     // ------------------------------------ rotas por perfil
                     .requestMatchers(HttpMethod.POST, "/usuarios/operadores")

@@ -48,9 +48,12 @@ app:
     validade-horas: 24
     max-tentativas: 5
   pagamento:
-    # Gateway simulado: chance de recusa nao e aleatoria, e determinada por regra
-    # deterministica no servico, para os testes serem reproduziveis (RN14).
+    # Gateway simulado: o desfecho não e sorteado, e decidido pelo token enviado,
+    # para quem for testar conseguir reproduzir aprovação e recusa quando quiser.
     mock-timeout-ms: 2000
+    # Segredo do webhook. Vazio por padrão: sem ele, o callback recusa tudo, o que e
+    # melhor do que aceitar chamada de qualquer um.
+    segredo-callback: ${PAGAMENTO_SEGREDO_CALLBACK:}
 
 rate-limit:
   capacity: 60

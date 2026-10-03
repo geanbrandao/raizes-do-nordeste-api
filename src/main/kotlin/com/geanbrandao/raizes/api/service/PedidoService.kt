@@ -353,6 +353,40 @@ class PedidoService(
     }
 
     /**
+     * Busca o pedido respeitando a visibilidade, para uso de outros services.
+     *
+     * O pagamento precisa chegar na entidade do pedido, mas não pode furar a regra de
+     * quem ve o que. Expor por aqui mantem essa decisão num lugar so.
+     *
+     * @param pedidoId Id do pedido.
+     * @param solicitante Quem esta acessando.
+     * @return Entidade do pedido.
+     * @throws NaoEncontradoException se não existir ou não for visivel a essa pessoa.
+     */
+    @Transactional(readOnly = true)
+    fun buscarEntidadeVisivel(pedidoId: UUID, solicitante: UsuarioAutenticado): PedidoEntity =
+        buscarVisivel(pedidoId, solicitante)
+
+    /**
+     * Move o pedido conforme o desfecho do pagamento.
+     *
+     * Não passa pelas regras de perfil de [atualizarStatus] de proposito: aqui quem
+     * esta mudando o status e o sistema reagindo ao gateway, não uma pessoa. Exigir
+     * perfil para isso travaria o fluxo justamente no automatico.
+     *
+     * @param pedido Pedido a mover.
+     * @param aprovado true se o gateway aprovou.
+     * @return Pedido salvo.
+     */
+    @Transactional
+    fun aplicarResultadoDePagamento(pedido: PedidoEntity, aprovado: Boolean): PedidoEntity {
+        pedido.status = if (aprovado) StatusPedido.PAGO else StatusPedido.PAGAMENTO_RECUSADO
+        pedido.atualizadoEm = LocalDateTime.now()
+        logger.info("Pedido {} -> {} apos retorno do gateway", pedido.id, pedido.status)
+        return pedidoRepository.save(pedido)
+    }
+
+    /**
      * Busca o pedido aplicando a visibilidade do perfil.
      *
      * Devolve 404 tanto para pedido inexistente quanto para pedido de outra pessoa.

@@ -13,6 +13,9 @@ jwt:
   refresh-token-expiration: 604800000  # 7 dias em ms
 
 app:
+  pagamento:
+    # Segredo conhecido em dev, para dar para testar o callback sem configurar nada.
+    segredo-callback: "segredo-do-gateway-em-dev"
   verificacao-email:
     # Codigo fixo em dev: quem for avaliar a API não tem caixa de entrada para
     # consultar. Em produção esta chave fica vazia e o codigo passa a ser sorteado.

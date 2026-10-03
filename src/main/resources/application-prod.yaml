@@ -30,6 +30,9 @@ jwt:
   refresh-token-expiration: 604800000  # 7 dias em ms
 
 app:
+  pagamento:
+    # Sem default: webhook sem segredo e porta aberta.
+    segredo-callback: ${PAGAMENTO_SEGREDO_CALLBACK}
   verificacao-email:
     # Vazio de proposito e sem possibilidade de sobrescrever por engano: em produção
     # o codigo e sorteado. Enquanto não houver um EnviadorDeEmail real, o codigo não
