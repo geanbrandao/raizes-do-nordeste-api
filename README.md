@@ -336,7 +336,7 @@ requisições, são os *scripts* — que é o que encadeia tokens e ids.
 |---|---|
 | **Postman** | Verificado: 93 requisições, 202 asserções, 0 falhas |
 | **Newman** (terminal) | Verificado, mesmo resultado |
-| **Insomnia 13.3** | Importa as 12 pastas; o `openapi.json` passa no *Default OAS Ruleset* sem erro nem aviso |
+| **Insomnia 13.3** | Verificado: 202/202 asserções no Collection Runner. O `openapi.json` passa no *Default OAS Ruleset* sem erro nem aviso |
 | **Bruno, Hoppscotch, Thunder Client** | Importam requisições e pastas; os scripts podem não rodar — veja a última linha da tabela de problemas |
 
 ---
