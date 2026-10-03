@@ -66,8 +66,22 @@ exatamente o que este passo existe para pegar.
 
 ## 2. Conferir que subiu
 
+Antes de qualquer chamada, defina este atalho na aba do terminal que voce vai usar:
+
 ```bash
-curl -s localhost:8080/actuator/health | jq
+api() { curl -s -w '%{stderr}HTTP %{http_code}\n' "$@"; }
+```
+
+Ele e o `curl` de sempre, com uma diferenca: **imprime o status HTTP na tela** e manda
+so o corpo da resposta para o `jq` ou para a variavel. E o que deixa conferir os status
+que cada secao promete (201, 422, 409...) sem atrapalhar os comandos que guardam o
+resultado em variavel, como `PEDIDO=$(api ...)`.
+
+O `api` vive so na aba onde foi definido, igual aos tokens da secao 4.0 — abriu outra
+aba, defina de novo.
+
+```bash
+api localhost:8080/actuator/health | jq
 ```
 
 Esperado: `{"status":"UP"}`
@@ -112,7 +126,7 @@ Como testar por lá:
 Conferência de que a documentação reflete as rotas reais:
 
 ```bash
-curl -s localhost:8080/v3/api-docs | jq -r '.paths | keys[]'
+api localhost:8080/v3/api-docs | jq -r '.paths | keys[]'
 ```
 
 Esperado (30 rotas):
@@ -166,7 +180,10 @@ Esperado (30 rotas):
 > passar dos 15 minutos de validade, rode este bloco de novo.
 
 ```bash
-login() { curl -s -X POST localhost:8080/auth/login -H 'Content-Type: application/json' \
+# Mesmo atalho da secao 2: status na tela, corpo para o jq.
+api() { curl -s -w '%{stderr}HTTP %{http_code}\n' "$@"; }
+
+login() { api -X POST localhost:8080/auth/login -H 'Content-Type: application/json' \
   -d "{\"email\":\"$1\",\"senha\":\"Senha@123\"}" | jq -r '.accessToken // empty'; }
 
 TOKEN=$(login cliente@exemplo.com)
@@ -184,7 +201,7 @@ done
 ```
 
 Se algum sair como `FALHOU`, pare aqui: ou a API não subiu, ou o banco está sem o seed.
-Confira com `curl -s localhost:8080/actuator/health`.
+Confira com `api localhost:8080/actuator/health`.
 
 ---
 
@@ -193,7 +210,7 @@ Confira com `curl -s localhost:8080/actuator/health`.
 **Login (200)**
 
 ```bash
-curl -s -X POST localhost:8080/auth/login -H 'Content-Type: application/json' \
+api -X POST localhost:8080/auth/login -H 'Content-Type: application/json' \
   -d '{"email":"cliente@exemplo.com","senha":"Senha@123"}' | jq
 ```
 
@@ -203,19 +220,19 @@ Esperado: `accessToken`, `refreshToken`, `tokenType: "Bearer"`, `expiresIn: 900`
 **Perfil autenticado (200)**
 
 ```bash
-curl -s localhost:8080/usuarios/me -H "Authorization: Bearer $TOKEN" | jq
+api localhost:8080/usuarios/me -H "Authorization: Bearer $TOKEN" | jq
 ```
 
 **Rotação do refresh token**
 
 ```bash
-REFRESH=$(curl -s -X POST localhost:8080/auth/login -H 'Content-Type: application/json' \
+REFRESH=$(api -X POST localhost:8080/auth/login -H 'Content-Type: application/json' \
   -d '{"email":"cliente@exemplo.com","senha":"Senha@123"}' | jq -r .refreshToken)
 echo "--- primeira renovacao (espera um token):"
-curl -s -X POST localhost:8080/auth/refresh -H 'Content-Type: application/json' \
+api -X POST localhost:8080/auth/refresh -H 'Content-Type: application/json' \
   -d "{\"refreshToken\":\"$REFRESH\"}" | jq -r '.accessToken // .error'
 echo "--- reusando o mesmo refresh (espera TOKEN_INVALIDO):"
-curl -s -X POST localhost:8080/auth/refresh -H 'Content-Type: application/json' \
+api -X POST localhost:8080/auth/refresh -H 'Content-Type: application/json' \
   -d "{\"refreshToken\":\"$REFRESH\"}" | jq -r '.accessToken // .error'
 ```
 
@@ -234,11 +251,11 @@ pendente e só loga depois de confirmar o código.
 
 ```bash
 # 1. cadastrar -> 202 generico
-curl -s -X POST localhost:8080/usuarios -H 'Content-Type: application/json' \
+api -X POST localhost:8080/usuarios -H 'Content-Type: application/json' \
   -d '{"nome":"Joana Silva","email":"joana@exemplo.com","senha":"Senha@123"}' | jq
 
 # 2. tentar logar antes de confirmar -> 403 EMAIL_NAO_VERIFICADO
-curl -s -X POST localhost:8080/auth/login -H 'Content-Type: application/json' \
+api -X POST localhost:8080/auth/login -H 'Content-Type: application/json' \
   -d '{"email":"joana@exemplo.com","senha":"Senha@123"}' | jq -r '.accessToken // .error'
 
 # 3. confirmar com o codigo de dev -> 204
@@ -247,16 +264,16 @@ curl -s -o /dev/null -w "%{http_code}\n" -X POST localhost:8080/usuarios/verific
   -d '{"email":"joana@exemplo.com","codigo":"258369"}'
 
 # 4. agora loga -> 200
-curl -s -X POST localhost:8080/auth/login -H 'Content-Type: application/json' \
+api -X POST localhost:8080/auth/login -H 'Content-Type: application/json' \
   -d '{"email":"joana@exemplo.com","senha":"Senha@123"}' | jq -r '.accessToken // .error'
 ```
 
 **Prova da proteção contra enumeração** — as duas respostas são idênticas:
 
 ```bash
-echo "--- email novo:"; curl -s -X POST localhost:8080/usuarios -H 'Content-Type: application/json' \
+echo "--- email novo:"; api -X POST localhost:8080/usuarios -H 'Content-Type: application/json' \
   -d '{"nome":"Fulano","email":"novo.endereco@exemplo.com","senha":"Senha@123"}'
-echo; echo "--- email existente:"; curl -s -X POST localhost:8080/usuarios -H 'Content-Type: application/json' \
+echo; echo "--- email existente:"; api -X POST localhost:8080/usuarios -H 'Content-Type: application/json' \
   -d '{"nome":"Outra Maria","email":"cliente@exemplo.com","senha":"Senha@123"}'
 echo
 ```
@@ -264,7 +281,7 @@ echo
 **Cadastro de operador (201, só ADMIN e GERENTE)**
 
 ```bash
-curl -s -X POST localhost:8080/usuarios/operadores -H "Authorization: Bearer $ADMIN" \
+api -X POST localhost:8080/usuarios/operadores -H "Authorization: Bearer $ADMIN" \
   -H 'Content-Type: application/json' \
   -d "{\"nome\":\"Novo Atendente\",\"email\":\"novo.atendente@raizes.com.br\",\"senha\":\"Senha@123\",\"perfil\":\"ATENDENTE\",\"unidadeId\":\"$RECIFE\"}" | jq
 ```
@@ -280,7 +297,7 @@ Operador nasce já verificado — foi criado por alguém de confiança, então l
 **Listagem pública e paginada (200)**
 
 ```bash
-curl -s "localhost:8080/unidades?page=1&limit=10" | jq
+api "localhost:8080/unidades?page=1&limit=10" | jq
 ```
 
 Esperado: envelope com `conteudo`, `pagina: 1`, `limite: 10`, `totalItens: 2`,
@@ -289,20 +306,20 @@ Esperado: envelope com `conteudo`, `pagina: 1`, `limite: 10`, `totalItens: 2`,
 **Paginação de verdade**
 
 ```bash
-curl -s "localhost:8080/unidades?page=1&limit=1" | jq '{pagina,totalPaginas,ultima,itens:(.conteudo|length)}'
-curl -s "localhost:8080/unidades?page=2&limit=1" | jq '{pagina,ultima}'
+api "localhost:8080/unidades?page=1&limit=1" | jq '{pagina,totalPaginas,ultima,itens:(.conteudo|length)}'
+api "localhost:8080/unidades?page=2&limit=1" | jq '{pagina,ultima}'
 ```
 
 **Detalhe (200)**
 
 ```bash
-curl -s localhost:8080/unidades/$RECIFE | jq
+api localhost:8080/unidades/$RECIFE | jq
 ```
 
 **Cadastrar unidade (201, só ADMIN)**
 
 ```bash
-curl -s -X POST localhost:8080/unidades -H "Authorization: Bearer $ADMIN" \
+api -X POST localhost:8080/unidades -H "Authorization: Bearer $ADMIN" \
   -H 'Content-Type: application/json' \
   -d '{"nome":"Raizes Olinda","cidade":"Olinda","uf":"pe","tipoOperacao":"REDUZIDA"}' | jq
 ```
@@ -318,7 +335,7 @@ Repare que a UF volta em maiúscula mesmo enviada minúscula — normalização 
 **Catálogo da rede (200, exige token)**
 
 ```bash
-curl -s "localhost:8080/produtos?page=1&limit=5" -H "Authorization: Bearer $TOKEN" | jq '{totalItens,totalPaginas,nomes:[.conteudo[].nome]}'
+api "localhost:8080/produtos?page=1&limit=5" -H "Authorization: Bearer $TOKEN" | jq '{totalItens,totalPaginas,nomes:[.conteudo[].nome]}'
 ```
 
 Esperado: `totalItens: 10`.
@@ -326,7 +343,7 @@ Esperado: `totalItens: 10`.
 **Filtro por categoria (aceita minúscula)**
 
 ```bash
-curl -s "localhost:8080/produtos?categoria=bebida" -H "Authorization: Bearer $TOKEN" | jq '{totalItens,nomes:[.conteudo[].nome]}'
+api "localhost:8080/produtos?categoria=bebida" -H "Authorization: Bearer $TOKEN" | jq '{totalItens,nomes:[.conteudo[].nome]}'
 ```
 
 Esperado: 3 bebidas.
@@ -334,7 +351,7 @@ Esperado: 3 bebidas.
 **Cadastrar produto (201, ADMIN ou GERENTE)**
 
 ```bash
-curl -s -X POST localhost:8080/produtos -H "Authorization: Bearer $GERENTE" \
+api -X POST localhost:8080/produtos -H "Authorization: Bearer $GERENTE" \
   -H 'Content-Type: application/json' \
   -d '{"nome":"Pamonha","categoria":"milho","precoBase":9.50,"sazonal":true}' | jq
 ```
@@ -346,9 +363,9 @@ BOLO=30000000-0000-0000-0000-000000000006
 curl -s -o /dev/null -w "inativar: %{http_code}\n" -X DELETE localhost:8080/produtos/$BOLO \
   -H "Authorization: Bearer $ADMIN"
 echo "--- sumiu da listagem:"
-curl -s localhost:8080/produtos -H "Authorization: Bearer $ADMIN" | jq .totalItens
+api localhost:8080/produtos -H "Authorization: Bearer $ADMIN" | jq .totalItens
 echo "--- mas continua existindo:"
-curl -s localhost:8080/produtos/$BOLO -H "Authorization: Bearer $ADMIN" | jq '{nome,ativo}'
+api localhost:8080/produtos/$BOLO -H "Authorization: Bearer $ADMIN" | jq '{nome,ativo}'
 ```
 
 O produto sai da listagem mas continua acessível por id, com `ativo: false`. Apagar de
@@ -365,14 +382,14 @@ Esta é a parte que mostra na prática que **nem toda loja da rede é igual**.
 **Consulta pública (200)**
 
 ```bash
-curl -s localhost:8080/unidades/$RECIFE/cardapio | jq '[.[] | {nome,preco,categoria}]'
+api localhost:8080/unidades/$RECIFE/cardapio | jq '[.[] | {nome,preco,categoria}]'
 ```
 
 **Unidade COMPLETA vende mais que a REDUZIDA**
 
 ```bash
-echo "Recife (COMPLETA):  $(curl -s localhost:8080/unidades/$RECIFE/cardapio | jq 'length') itens"
-echo "Caruaru (REDUZIDA): $(curl -s localhost:8080/unidades/$CARUARU/cardapio | jq 'length') itens"
+echo "Recife (COMPLETA):  $(api localhost:8080/unidades/$RECIFE/cardapio | jq 'length') itens"
+echo "Caruaru (REDUZIDA): $(api localhost:8080/unidades/$CARUARU/cardapio | jq 'length') itens"
 ```
 
 Esperado: 10 e 6.
@@ -381,7 +398,7 @@ Esperado: 10 e 6.
 
 ```bash
 for u in $RECIFE $CARUARU; do
-  curl -s localhost:8080/unidades/$u/cardapio \
+  api localhost:8080/unidades/$u/cardapio \
     | jq -r --arg u "$u" '.[] | select(.nome=="Tapioca de queijo coalho") | "\($u): R$ \(.preco)"'
 done
 ```
@@ -389,7 +406,7 @@ done
 **Gerente ajusta o preço da própria loja (200)**
 
 ```bash
-curl -s -X PUT localhost:8080/unidades/$RECIFE/cardapio/$TAPIOCA \
+api -X PUT localhost:8080/unidades/$RECIFE/cardapio/$TAPIOCA \
   -H "Authorization: Bearer $GERENTE" -H 'Content-Type: application/json' \
   -d '{"preco":15.50,"disponivel":true}' | jq '{nome,preco,disponivel}'
 ```
@@ -397,14 +414,28 @@ curl -s -X PUT localhost:8080/unidades/$RECIFE/cardapio/$TAPIOCA \
 **Tirar item do ar sem apagar o cadastro**
 
 ```bash
-curl -s -X PUT localhost:8080/unidades/$RECIFE/cardapio/$TAPIOCA \
+api -X PUT localhost:8080/unidades/$RECIFE/cardapio/$TAPIOCA \
   -H "Authorization: Bearer $GERENTE" -H 'Content-Type: application/json' \
   -d '{"preco":15.50,"disponivel":false}' > /dev/null
-echo "--- visao do cliente:    $(curl -s localhost:8080/unidades/$RECIFE/cardapio | jq 'length') itens"
-echo "--- visao da operacao:   $(curl -s "localhost:8080/unidades/$RECIFE/cardapio?incluirIndisponiveis=true" | jq 'length') itens"
+echo "--- visao do cliente:    $(api localhost:8080/unidades/$RECIFE/cardapio | jq 'length') itens"
+echo "--- visao da operacao:   $(api "localhost:8080/unidades/$RECIFE/cardapio?incluirIndisponiveis=true" | jq 'length') itens"
 ```
 
 O item some para o cliente e continua visível para quem administra a loja.
+
+**Religue o item antes de seguir**
+
+```bash
+api -X PUT localhost:8080/unidades/$RECIFE/cardapio/$TAPIOCA \
+  -H "Authorization: Bearer $GERENTE" -H 'Content-Type: application/json' \
+  -d '{"preco":15.50,"disponivel":true}' | jq '{nome,preco,disponivel}'
+```
+
+Esperado: 200 com `disponivel: true`.
+
+> **Nao pule este passo.** A secao 4.7 monta o pedido com essa mesma tapioca. Se ela
+> ficar indisponivel, o `POST /pedidos` devolve 422 `PRODUTO_FORA_DO_CARDAPIO` e parece
+> que o fluxo de pedido esta quebrado, quando o que sobrou foi o estado deste teste.
 
 ---
 
@@ -417,7 +448,7 @@ Estoque é informação da operação, não da vitrine: cliente não tem acesso 
 **Saldo da unidade (200)**
 
 ```bash
-curl -s "localhost:8080/unidades/$RECIFE/estoque?limit=100" -H "Authorization: Bearer $GERENTE" \
+api "localhost:8080/unidades/$RECIFE/estoque?limit=100" -H "Authorization: Bearer $GERENTE" \
   | jq '[.conteudo[] | {nome,saldoAtual,abaixoDoMinimo}]'
 ```
 
@@ -428,7 +459,7 @@ propositalmente baixo, para dar para testar o 409 de estoque insuficiente sem pr
 
 ```bash
 BOLO=30000000-0000-0000-0000-000000000006
-curl -s -X POST localhost:8080/unidades/$RECIFE/estoque/movimentacoes \
+api -X POST localhost:8080/unidades/$RECIFE/estoque/movimentacoes \
   -H "Authorization: Bearer $GERENTE" -H 'Content-Type: application/json' \
   -d "{\"produtoId\":\"$BOLO\",\"tipo\":\"ENTRADA\",\"quantidade\":20,\"motivo\":\"Recebimento do fornecedor\"}" \
   | jq '{tipo,quantidade,saldoApos,motivo}'
@@ -439,7 +470,7 @@ Esperado: `saldoApos: 22` (2 + 20).
 **Saída subtrai (201)**
 
 ```bash
-curl -s -X POST localhost:8080/unidades/$RECIFE/estoque/movimentacoes \
+api -X POST localhost:8080/unidades/$RECIFE/estoque/movimentacoes \
   -H "Authorization: Bearer $GERENTE" -H 'Content-Type: application/json' \
   -d "{\"produtoId\":\"$TAPIOCA\",\"tipo\":\"SAIDA\",\"quantidade\":15}" | jq '{tipo,saldoApos}'
 ```
@@ -449,7 +480,7 @@ Esperado: `saldoApos: 35` (50 − 15).
 **Ajuste define o saldo absoluto (201)**
 
 ```bash
-curl -s -X POST localhost:8080/unidades/$RECIFE/estoque/movimentacoes \
+api -X POST localhost:8080/unidades/$RECIFE/estoque/movimentacoes \
   -H "Authorization: Bearer $GERENTE" -H 'Content-Type: application/json' \
   -d "{\"produtoId\":\"$TAPIOCA\",\"tipo\":\"AJUSTE\",\"quantidade\":7,\"motivo\":\"Contagem de inventario\"}" \
   | jq '{tipo,quantidade,saldoApos}'
@@ -462,7 +493,7 @@ aceito aqui (contagem pode dar zero), mas recusado em `ENTRADA` e `SAIDA`.
 **Histórico do produto (200, só GERENTE e ADMIN)**
 
 ```bash
-curl -s "localhost:8080/unidades/$RECIFE/estoque/$TAPIOCA/movimentacoes" \
+api "localhost:8080/unidades/$RECIFE/estoque/$TAPIOCA/movimentacoes" \
   -H "Authorization: Bearer $GERENTE" | jq '[.conteudo[] | {tipo,quantidade,saldoApos,motivo,criadoEm}]'
 ```
 
@@ -478,7 +509,7 @@ sem recalcular nada.
 **Criar pedido (201)**
 
 ```bash
-PEDIDO=$(curl -s -X POST localhost:8080/pedidos -H "Authorization: Bearer $TOKEN" \
+PEDIDO=$(api -X POST localhost:8080/pedidos -H "Authorization: Bearer $TOKEN" \
   -H 'Content-Type: application/json' \
   -d "{\"unidadeId\":\"$RECIFE\",\"canalPedido\":\"TOTEM\",\"itens\":[{\"produtoId\":\"$TAPIOCA\",\"quantidade\":2}]}")
 echo "$PEDIDO" | jq '{id,status,canalPedido,subtotal,desconto,total,proximosStatus,itens}'
@@ -493,7 +524,7 @@ unidade e congela no item — reajuste posterior não muda pedido antigo.
 **O preço vem do cardápio, não do cliente**
 
 ```bash
-curl -s -X POST localhost:8080/pedidos -H "Authorization: Bearer $TOKEN" \
+api -X POST localhost:8080/pedidos -H "Authorization: Bearer $TOKEN" \
   -H 'Content-Type: application/json' \
   -d "{\"unidadeId\":\"$RECIFE\",\"canalPedido\":\"APP\",\"itens\":[{\"produtoId\":\"$TAPIOCA\",\"quantidade\":1,\"precoUnitario\":0.01}]}" \
   | jq '.itens[0].precoUnitario'
@@ -504,12 +535,12 @@ Esperado: `12.90`. O `precoUnitario` enviado é simplesmente ignorado.
 **A criação baixa o estoque**
 
 ```bash
-antes=$(curl -s "localhost:8080/unidades/$RECIFE/estoque?limit=100" -H "Authorization: Bearer $GERENTE" \
+antes=$(api "localhost:8080/unidades/$RECIFE/estoque?limit=100" -H "Authorization: Bearer $GERENTE" \
   | jq --arg p "$TAPIOCA" '.conteudo[] | select(.produtoId==$p) | .saldoAtual')
 curl -s -o /dev/null -X POST localhost:8080/pedidos -H "Authorization: Bearer $TOKEN" \
   -H 'Content-Type: application/json' \
   -d "{\"unidadeId\":\"$RECIFE\",\"canalPedido\":\"APP\",\"itens\":[{\"produtoId\":\"$TAPIOCA\",\"quantidade\":3}]}"
-depois=$(curl -s "localhost:8080/unidades/$RECIFE/estoque?limit=100" -H "Authorization: Bearer $GERENTE" \
+depois=$(api "localhost:8080/unidades/$RECIFE/estoque?limit=100" -H "Authorization: Bearer $GERENTE" \
   | jq --arg p "$TAPIOCA" '.conteudo[] | select(.produtoId==$p) | .saldoAtual')
 echo "saldo antes: $antes / depois: $depois (esperado: 3 a menos)"
 ```
@@ -517,7 +548,7 @@ echo "saldo antes: $antes / depois: $depois (esperado: 3 a menos)"
 **Multicanalidade: filtrar por canal**
 
 ```bash
-curl -s "localhost:8080/pedidos?canalPedido=TOTEM" -H "Authorization: Bearer $TOKEN" \
+api "localhost:8080/pedidos?canalPedido=TOTEM" -H "Authorization: Bearer $TOKEN" \
   | jq '{totalItens, canais:[.conteudo[].canalPedido]}'
 ```
 
@@ -526,7 +557,7 @@ Esperado: só `TOTEM` na lista. É o que permite a matriz acompanhar a venda por
 **Avançar o status**
 
 ```bash
-avancar() { curl -s -X PATCH localhost:8080/pedidos/$PEDIDO_ID/status \
+avancar() { api -X PATCH localhost:8080/pedidos/$PEDIDO_ID/status \
   -H "Authorization: Bearer $GERENTE" -H 'Content-Type: application/json' \
   -d "{\"status\":\"$1\"}" | jq -r '.status // .error'; }
 avancar PAGO; avancar EM_PREPARO; avancar PRONTO; avancar ENTREGUE
@@ -537,11 +568,11 @@ Esperado: os quatro status em sequência.
 **Cancelar devolve o estoque**
 
 ```bash
-NOVO=$(curl -s -X POST localhost:8080/pedidos -H "Authorization: Bearer $TOKEN" \
+NOVO=$(api -X POST localhost:8080/pedidos -H "Authorization: Bearer $TOKEN" \
   -H 'Content-Type: application/json' \
   -d "{\"unidadeId\":\"$RECIFE\",\"canalPedido\":\"APP\",\"itens\":[{\"produtoId\":\"$TAPIOCA\",\"quantidade\":4}]}" | jq -r .id)
-curl -s -X POST localhost:8080/pedidos/$NOVO/cancelamento -H "Authorization: Bearer $TOKEN" | jq '{status}'
-curl -s "localhost:8080/unidades/$RECIFE/estoque/$TAPIOCA/movimentacoes" -H "Authorization: Bearer $GERENTE" \
+api -X POST localhost:8080/pedidos/$NOVO/cancelamento -H "Authorization: Bearer $TOKEN" | jq '{status}'
+api "localhost:8080/unidades/$RECIFE/estoque/$TAPIOCA/movimentacoes" -H "Authorization: Bearer $GERENTE" \
   | jq '[.conteudo[] | {tipo,quantidade,saldoApos,motivo}]'
 ```
 
@@ -552,7 +583,7 @@ O histórico mostra a saída **e** a devolução — a devolução não apaga a 
 O seed tem uma campanha de 10% exclusiva do canal `APP`, válida na rede toda:
 
 ```bash
-curl -s -X POST localhost:8080/pedidos -H "Authorization: Bearer $TOKEN" \
+api -X POST localhost:8080/pedidos -H "Authorization: Bearer $TOKEN" \
   -H 'Content-Type: application/json' \
   -d "{\"unidadeId\":\"$RECIFE\",\"canalPedido\":\"APP\",\"itens\":[{\"produtoId\":\"$TAPIOCA\",\"quantidade\":2}]}" \
   | jq '{subtotal,desconto,total,campanhaAplicada}'
@@ -579,10 +610,10 @@ A API **nunca recebe dado de cartão**: o `tokenPagamento` é opaco e, num cená
 viria do SDK do próprio gateway.
 
 ```bash
-novoPedido() { curl -s -X POST localhost:8080/pedidos -H "Authorization: Bearer $TOKEN" \
+novoPedido() { api -X POST localhost:8080/pedidos -H "Authorization: Bearer $TOKEN" \
   -H 'Content-Type: application/json' \
   -d "{\"unidadeId\":\"$RECIFE\",\"canalPedido\":\"TOTEM\",\"itens\":[{\"produtoId\":\"$TAPIOCA\",\"quantidade\":2}]}" | jq -r .id; }
-pagar() { curl -s -X POST localhost:8080/pedidos/$1/pagamentos -H "Authorization: Bearer $TOKEN" \
+pagar() { api -X POST localhost:8080/pedidos/$1/pagamentos -H "Authorization: Bearer $TOKEN" \
   -H 'Content-Type: application/json' -d "{\"metodo\":\"PIX\",\"tokenPagamento\":\"$2\"}"; }
 ```
 
@@ -625,7 +656,7 @@ arriscaria cobrar o cliente duas vezes.
 Agora o gateway avisa o resultado:
 
 ```bash
-curl -s -X POST localhost:8080/pagamentos/callback \
+api -X POST localhost:8080/pagamentos/callback \
   -H 'X-Gateway-Assinatura: segredo-do-gateway-em-dev' -H 'Content-Type: application/json' \
   -d "{\"pagamentoId\":\"$PAG_ID\",\"resultado\":\"APROVADO\",\"idTransacaoExterna\":\"ext_777\"}" \
   | jq '{status,statusPedido}'
@@ -639,8 +670,8 @@ reenvia webhook quando não recebe confirmação.
 ```bash
 P4=$(novoPedido)
 corpo='{"metodo":"PIX","tokenPagamento":"tok_ok","chaveIdempotencia":"minha-chave-1"}'
-id1=$(curl -s -X POST localhost:8080/pedidos/$P4/pagamentos -H "Authorization: Bearer $TOKEN" -H 'Content-Type: application/json' -d "$corpo" | jq -r .id)
-id2=$(curl -s -X POST localhost:8080/pedidos/$P4/pagamentos -H "Authorization: Bearer $TOKEN" -H 'Content-Type: application/json' -d "$corpo" | jq -r .id)
+id1=$(api -X POST localhost:8080/pedidos/$P4/pagamentos -H "Authorization: Bearer $TOKEN" -H 'Content-Type: application/json' -d "$corpo" | jq -r .id)
+id2=$(api -X POST localhost:8080/pedidos/$P4/pagamentos -H "Authorization: Bearer $TOKEN" -H 'Content-Type: application/json' -d "$corpo" | jq -r .id)
 [ "$id1" = "$id2" ] && echo "ok: mesmo pagamento devolvido ($id1)" || echo "FALHOU: cobrou duas vezes"
 ```
 
@@ -657,7 +688,7 @@ ativo, o pedido pago passa sem gerar ponto.
 **Consentimentos do titular**
 
 ```bash
-curl -s localhost:8080/consentimentos -H "Authorization: Bearer $TOKEN" | jq
+api localhost:8080/consentimentos -H "Authorization: Bearer $TOKEN" | jq
 ```
 
 O cliente do seed já vem com `FIDELIDADE` ativo.
@@ -665,10 +696,10 @@ O cliente do seed já vem com `FIDELIDADE` ativo.
 **Pedido pago credita pontos**
 
 ```bash
-echo "saldo antes: $(curl -s localhost:8080/fidelidade/saldo -H "Authorization: Bearer $TOKEN" | jq .saldoPontos)"
+echo "saldo antes: $(api localhost:8080/fidelidade/saldo -H "Authorization: Bearer $TOKEN" | jq .saldoPontos)"
 PF=$(novoPedido); pagar $PF tok_ok > /dev/null
-echo "saldo depois: $(curl -s localhost:8080/fidelidade/saldo -H "Authorization: Bearer $TOKEN" | jq .saldoPontos)"
-curl -s localhost:8080/fidelidade/extrato -H "Authorization: Bearer $TOKEN" \
+echo "saldo depois: $(api localhost:8080/fidelidade/saldo -H "Authorization: Bearer $TOKEN" | jq .saldoPontos)"
+api localhost:8080/fidelidade/extrato -H "Authorization: Bearer $TOKEN" \
   | jq '[.conteudo[] | {tipo,pontos,saldoApos,descricao}]'
 ```
 
@@ -677,14 +708,14 @@ Esperado: +25 pontos (total 25.80, 1 ponto por real, truncado para baixo).
 **Sem consentimento não pontua** — a prova da regra
 
 ```bash
-CID=$(curl -s localhost:8080/consentimentos -H "Authorization: Bearer $TOKEN" \
+CID=$(api localhost:8080/consentimentos -H "Authorization: Bearer $TOKEN" \
   | jq -r '.[] | select(.finalidade=="FIDELIDADE") | .id')
-curl -s -X DELETE localhost:8080/consentimentos/$CID -H "Authorization: Bearer $TOKEN" \
+api -X DELETE localhost:8080/consentimentos/$CID -H "Authorization: Bearer $TOKEN" \
   | jq '{finalidade,ativo,revogadoEm}'
 
-antes=$(curl -s localhost:8080/fidelidade/saldo -H "Authorization: Bearer $TOKEN" | jq .saldoPontos)
+antes=$(api localhost:8080/fidelidade/saldo -H "Authorization: Bearer $TOKEN" | jq .saldoPontos)
 PS=$(novoPedido); pagar $PS tok_ok > /dev/null
-depois=$(curl -s localhost:8080/fidelidade/saldo -H "Authorization: Bearer $TOKEN" | jq .saldoPontos)
+depois=$(api localhost:8080/fidelidade/saldo -H "Authorization: Bearer $TOKEN" | jq .saldoPontos)
 echo "pedido pago com sucesso, saldo $antes -> $depois (esperado: igual)"
 ```
 
@@ -695,7 +726,7 @@ tratamento foi legítimo enquanto durou.
 Para voltar a pontuar:
 
 ```bash
-curl -s -X POST localhost:8080/consentimentos -H "Authorization: Bearer $TOKEN" \
+api -X POST localhost:8080/consentimentos -H "Authorization: Bearer $TOKEN" \
   -H 'Content-Type: application/json' \
   -d '{"finalidade":"FIDELIDADE","versaoDocumento":"1.0"}' | jq '{finalidade,ativo}'
 ```
@@ -703,7 +734,7 @@ curl -s -X POST localhost:8080/consentimentos -H "Authorization: Bearer $TOKEN" 
 **Resgate**
 
 ```bash
-curl -s -X POST localhost:8080/fidelidade/resgates -H "Authorization: Bearer $TOKEN" \
+api -X POST localhost:8080/fidelidade/resgates -H "Authorization: Bearer $TOKEN" \
   -H 'Content-Type: application/json' -d '{"pontos":10,"descricao":"Troca por cuscuz"}' | jq
 ```
 
@@ -714,7 +745,7 @@ curl -s -X POST localhost:8080/fidelidade/resgates -H "Authorization: Bearer $TO
 > Precisa das variáveis da seção **4.0**. Só `ADMIN` lê a trilha.
 
 ```bash
-curl -s "localhost:8080/auditoria?limit=20" -H "Authorization: Bearer $ADMIN" \
+api "localhost:8080/auditoria?limit=20" -H "Authorization: Bearer $ADMIN" \
   | jq '[.conteudo[] | {acao,entidade,usuarioId,ip,criadoEm}]'
 ```
 
@@ -722,7 +753,7 @@ curl -s "localhost:8080/auditoria?limit=20" -H "Authorization: Bearer $ADMIN" \
 
 ```bash
 for e in PEDIDO ESTOQUE PAGAMENTO FIDELIDADE CONSENTIMENTO; do
-  n=$(curl -s "localhost:8080/auditoria?entidade=$e&limit=100" -H "Authorization: Bearer $ADMIN" | jq .totalItens)
+  n=$(api "localhost:8080/auditoria?entidade=$e&limit=100" -H "Authorization: Bearer $ADMIN" | jq .totalItens)
   echo "$e: $n registro(s)"
 done
 ```
@@ -730,7 +761,7 @@ done
 **O antes e o depois de uma mudança de status**
 
 ```bash
-curl -s "localhost:8080/auditoria?entidade=PEDIDO&limit=5" -H "Authorization: Bearer $ADMIN" \
+api "localhost:8080/auditoria?entidade=PEDIDO&limit=5" -H "Authorization: Bearer $ADMIN" \
   | jq '[.conteudo[] | select(.acao=="STATUS_ALTERADO") | {acao,dadosAnteriores,dadosNovos}]'
 ```
 
@@ -790,66 +821,66 @@ Todos devolvem o mesmo formato: `error`, `message`, `details[]`, `timestamp`, `p
 ```bash
 p() { printf "\n--- %s\n" "$1"; }
 
-p "1. sem token";            curl -s localhost:8080/usuarios/me | jq -c '{error,message}'
-p "2. cliente em rota admin"; curl -s -X POST localhost:8080/unidades -H "Authorization: Bearer $TOKEN" \
+p "1. sem token";            api localhost:8080/usuarios/me | jq -c '{error,message}'
+p "2. cliente em rota admin"; api -X POST localhost:8080/unidades -H "Authorization: Bearer $TOKEN" \
   -H 'Content-Type: application/json' -d '{"nome":"X","cidade":"Y","uf":"PE","tipoOperacao":"COMPLETA"}' | jq -c '{error}'
-p "3. gerente em outra unidade"; curl -s -X PUT localhost:8080/unidades/$CARUARU/cardapio/$TAPIOCA \
+p "3. gerente em outra unidade"; api -X PUT localhost:8080/unidades/$CARUARU/cardapio/$TAPIOCA \
   -H "Authorization: Bearer $GERENTE" -H 'Content-Type: application/json' \
   -d '{"preco":1.00,"disponivel":true}' | jq -c '{error,message}'
-p "4. unidade inexistente";  curl -s localhost:8080/unidades/10000000-0000-0000-0000-0000000000ff/cardapio | jq -c '{error}'
-p "5. produto inexistente";  curl -s -X PUT localhost:8080/unidades/$RECIFE/cardapio/30000000-0000-0000-0000-0000000000ff \
+p "4. unidade inexistente";  api localhost:8080/unidades/10000000-0000-0000-0000-0000000000ff/cardapio | jq -c '{error}'
+p "5. produto inexistente";  api -X PUT localhost:8080/unidades/$RECIFE/cardapio/30000000-0000-0000-0000-0000000000ff \
   -H "Authorization: Bearer $ADMIN" -H 'Content-Type: application/json' -d '{"preco":10.00,"disponivel":true}' | jq -c '{error}'
-p "6. email duplicado";      curl -s -X POST localhost:8080/usuarios/operadores -H "Authorization: Bearer $ADMIN" \
+p "6. email duplicado";      api -X POST localhost:8080/usuarios/operadores -H "Authorization: Bearer $ADMIN" \
   -H 'Content-Type: application/json' \
   -d "{\"nome\":\"Repetido\",\"email\":\"cliente@exemplo.com\",\"senha\":\"Senha@123\",\"perfil\":\"ATENDENTE\",\"unidadeId\":\"$RECIFE\"}" | jq -c '{error,details}'
-p "7. senha fraca";          curl -s -X POST localhost:8080/usuarios -H 'Content-Type: application/json' \
+p "7. senha fraca";          api -X POST localhost:8080/usuarios -H 'Content-Type: application/json' \
   -d '{"nome":"Joana Silva","email":"fraca@exemplo.com","senha":"12345678"}' | jq -c '{error,details}'
-p "8. preco negativo";       curl -s -X PUT localhost:8080/unidades/$RECIFE/cardapio/$TAPIOCA \
+p "8. preco negativo";       api -X PUT localhost:8080/unidades/$RECIFE/cardapio/$TAPIOCA \
   -H "Authorization: Bearer $ADMIN" -H 'Content-Type: application/json' -d '{"preco":-5.00,"disponivel":true}' | jq -c '{error,details}'
-p "9. campo ausente";        curl -s -X POST localhost:8080/auth/login -H 'Content-Type: application/json' \
+p "9. campo ausente";        api -X POST localhost:8080/auth/login -H 'Content-Type: application/json' \
   -d '{"senha":"Senha@123"}' | jq -c '{error,details}'
-p "10. enum invalido";       curl -s -X POST localhost:8080/unidades -H "Authorization: Bearer $ADMIN" \
+p "10. enum invalido";       api -X POST localhost:8080/unidades -H "Authorization: Bearer $ADMIN" \
   -H 'Content-Type: application/json' -d '{"nome":"X","cidade":"Y","uf":"PE","tipoOperacao":"DRIVE_THRU"}' | jq -c '{error,details}'
-p "11. uuid mal formado";    curl -s localhost:8080/unidades/isso-nao-e-uuid | jq -c '{error,details}'
-p "12. paginacao invalida";  curl -s "localhost:8080/unidades?page=0&limit=999" | jq -c '{error,details}'
-p "13. codigo errado";       curl -s -X POST localhost:8080/usuarios/verificacao -H 'Content-Type: application/json' \
+p "11. uuid mal formado";    api localhost:8080/unidades/isso-nao-e-uuid | jq -c '{error,details}'
+p "12. paginacao invalida";  api "localhost:8080/unidades?page=0&limit=999" | jq -c '{error,details}'
+p "13. codigo errado";       api -X POST localhost:8080/usuarios/verificacao -H 'Content-Type: application/json' \
   -d '{"email":"joana@exemplo.com","codigo":"000000"}' | jq -c '{error}'
-p "14. estoque insuficiente"; curl -s -X POST localhost:8080/unidades/$RECIFE/estoque/movimentacoes \
+p "14. estoque insuficiente"; api -X POST localhost:8080/unidades/$RECIFE/estoque/movimentacoes \
   -H "Authorization: Bearer $GERENTE" -H 'Content-Type: application/json' \
   -d '{"produtoId":"30000000-0000-0000-0000-000000000006","tipo":"SAIDA","quantidade":999}' | jq -c '{error,details}'
-p "15. cliente no estoque";  curl -s "localhost:8080/unidades/$RECIFE/estoque" -H "Authorization: Bearer $TOKEN" | jq -c '{error,message}'
-p "16. entrada zero";        curl -s -X POST localhost:8080/unidades/$RECIFE/estoque/movimentacoes \
+p "15. cliente no estoque";  api "localhost:8080/unidades/$RECIFE/estoque" -H "Authorization: Bearer $TOKEN" | jq -c '{error,message}'
+p "16. entrada zero";        api -X POST localhost:8080/unidades/$RECIFE/estoque/movimentacoes \
   -H "Authorization: Bearer $GERENTE" -H 'Content-Type: application/json' \
   -d "{\"produtoId\":\"$TAPIOCA\",\"tipo\":\"ENTRADA\",\"quantidade\":0}" | jq -c '{error,details}'
-p "17. pedido sem canal";    curl -s -X POST localhost:8080/pedidos -H "Authorization: Bearer $TOKEN" \
+p "17. pedido sem canal";    api -X POST localhost:8080/pedidos -H "Authorization: Bearer $TOKEN" \
   -H 'Content-Type: application/json' \
   -d "{\"unidadeId\":\"$RECIFE\",\"itens\":[{\"produtoId\":\"$TAPIOCA\",\"quantidade\":1}]}" | jq -c '{error,details}'
-p "18. pedido sem estoque";  curl -s -X POST localhost:8080/pedidos -H "Authorization: Bearer $TOKEN" \
+p "18. pedido sem estoque";  api -X POST localhost:8080/pedidos -H "Authorization: Bearer $TOKEN" \
   -H 'Content-Type: application/json' \
   -d "{\"unidadeId\":\"$RECIFE\",\"canalPedido\":\"APP\",\"itens\":[{\"produtoId\":\"30000000-0000-0000-0000-000000000006\",\"quantidade\":999}]}" | jq -c '{error,details}'
-p "19. fora do cardapio";    curl -s -X POST localhost:8080/pedidos -H "Authorization: Bearer $TOKEN" \
+p "19. fora do cardapio";    api -X POST localhost:8080/pedidos -H "Authorization: Bearer $TOKEN" \
   -H 'Content-Type: application/json' \
   -d "{\"unidadeId\":\"$CARUARU\",\"canalPedido\":\"APP\",\"itens\":[{\"produtoId\":\"30000000-0000-0000-0000-000000000006\",\"quantidade\":1}]}" | jq -c '{error,details}'
-p "20. transicao invalida";  curl -s -X PATCH localhost:8080/pedidos/$PEDIDO_ID/status \
+p "20. transicao invalida";  api -X PATCH localhost:8080/pedidos/$PEDIDO_ID/status \
   -H "Authorization: Bearer $GERENTE" -H 'Content-Type: application/json' \
   -d '{"status":"AGUARDANDO_PAGAMENTO"}' | jq -c '{error,details}'
-p "21. pedido de outro";     curl -s localhost:8080/pedidos/$PEDIDO_ID -H "Authorization: Bearer $(login gerente.caruaru@raizes.com.br)" | jq -c '{error}'
+p "21. pedido de outro";     api localhost:8080/pedidos/$PEDIDO_ID -H "Authorization: Bearer $(login gerente.caruaru@raizes.com.br)" | jq -c '{error}'
 p "22. pedido ja pago";      PJ=$(novoPedido); pagar $PJ tok_ok > /dev/null; \
-  curl -s -X POST localhost:8080/pedidos/$PJ/pagamentos -H "Authorization: Bearer $TOKEN" \
+  api -X POST localhost:8080/pedidos/$PJ/pagamentos -H "Authorization: Bearer $TOKEN" \
   -H 'Content-Type: application/json' -d '{"metodo":"PIX"}' | jq -c '{error,message}'
-p "23. callback sem assinatura"; curl -s -X POST localhost:8080/pagamentos/callback \
+p "23. callback sem assinatura"; api -X POST localhost:8080/pagamentos/callback \
   -H 'Content-Type: application/json' \
   -d '{"pagamentoId":"00000000-0000-0000-0000-000000000001","resultado":"APROVADO"}' | jq -c '{error}'
-p "24. metodo invalido";     PM=$(novoPedido); curl -s -X POST localhost:8080/pedidos/$PM/pagamentos \
+p "24. metodo invalido";     PM=$(novoPedido); api -X POST localhost:8080/pedidos/$PM/pagamentos \
   -H "Authorization: Bearer $TOKEN" -H 'Content-Type: application/json' \
   -d '{"metodo":"BITCOIN"}' | jq -c '{error,details}'
-p "25. resgate sem saldo";   curl -s -X POST localhost:8080/fidelidade/resgates -H "Authorization: Bearer $TOKEN" \
+p "25. resgate sem saldo";   api -X POST localhost:8080/fidelidade/resgates -H "Authorization: Bearer $TOKEN" \
   -H 'Content-Type: application/json' -d '{"pontos":99999}' | jq -c '{error,details}'
-p "26. gerente na auditoria"; curl -s localhost:8080/auditoria -H "Authorization: Bearer $GERENTE" | jq -c '{error}'
-p "27. finalidade invalida"; curl -s -X POST localhost:8080/consentimentos -H "Authorization: Bearer $TOKEN" \
+p "26. gerente na auditoria"; api localhost:8080/auditoria -H "Authorization: Bearer $GERENTE" | jq -c '{error}'
+p "27. finalidade invalida"; api -X POST localhost:8080/consentimentos -H "Authorization: Bearer $TOKEN" \
   -H 'Content-Type: application/json' \
   -d '{"finalidade":"VENDER_PARA_TERCEIROS","versaoDocumento":"1.0"}' | jq -c '{error,details}'
-p "28. metodo nao aceito";   curl -s -X POST localhost:8080/auditoria -H "Authorization: Bearer $ADMIN" \
+p "28. metodo nao aceito";   api -X POST localhost:8080/auditoria -H "Authorization: Bearer $ADMIN" \
   -H 'Content-Type: application/json' -d '{}' | jq -c '{error,details}'
 echo
 ```
@@ -858,7 +889,7 @@ echo
 
 ```bash
 curl -s -i localhost:8080/usuarios/me -H 'X-Request-Id: meu-teste-123' | grep -i x-request-id
-curl -s localhost:8080/usuarios/me -H 'X-Request-Id: meu-teste-123' | jq -r .requestId
+api localhost:8080/usuarios/me -H 'X-Request-Id: meu-teste-123' | jq -r .requestId
 ```
 
 Esperado: o mesmo `meu-teste-123` nos dois. Quando o cliente não manda, a API gera um UUID.
@@ -914,4 +945,8 @@ verdade, subir em `prod` registra um aviso no startup e os códigos não chegam 
 | Rota nova dá 401 sem motivo | *Default deny*: rota não liberada no `SecurityConfig` | Liberar explicitamente, se for para ser pública |
 | `jq: Cannot iterate over null` | A resposta é o envelope de **erro**, não o de dados — quase sempre `$TOKEN` vazio ou expirado | Rodar a seção **4.0**. Para ver o que voltou de verdade: repita o curl com `-i` e sem o filtro do `jq` |
 | `jq: Cannot index number with string` | Mesma causa da linha acima | Idem |
+| O `jq` devolve um objeto com **todos os campos `null`** | A resposta e um envelope de erro: os campos que voce pediu nao existem nele. O status na tela mostra qual erro | Rodar `echo "$VARIAVEL" | jq` sem filtro para ler a mensagem |
+| `api: command not found` | O atalho vive so na aba onde foi definido | Redefinir o `api()` da secao 2 nesta aba |
+| 422 `PRODUTO_FORA_DO_CARDAPIO` no `POST /pedidos` com um item que deveria existir | A secao 4.5 deixou o item indisponivel | Rodar o passo **Religue o item** no fim da 4.5 |
+| Contagens da secao 2 nao batem (usuarios, itens de cardapio) | O volume do Postgres guarda dados de validacoes anteriores | `docker compose down -v && docker compose up --build -d` recria do seed |
 | Build do container muito lento | Primeira vez baixa Gradle e dependências | Normal; as próximas usam cache |
