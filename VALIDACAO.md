@@ -29,7 +29,7 @@ Este roteiro foi executado de ponta a ponta contra Postgres real, em banco criad
 cd ~/Documents/faculdade/TCC/raizes-do-nordeste-api && ./gradlew test
 ```
 
-Esperado: `BUILD SUCCESSFUL`, 193 testes, 0 falhas.
+Esperado: `BUILD SUCCESSFUL`, 196 testes, 0 falhas.
 
 Os testes usam H2 em modo PostgreSQL com as migrations reais aplicadas pelo Flyway.
 Provam a coerência entre migrations, entidades e seed — mas **não** substituem uma
