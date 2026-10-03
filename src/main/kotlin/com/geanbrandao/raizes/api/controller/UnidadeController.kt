@@ -79,7 +79,10 @@ class UnidadeController(
      */
     @GetMapping("/{unidadeId}")
     @SecurityRequirements
-    @Operation(summary = "Detalhar unidade")
+    @Operation(
+        summary = "Detalhar unidade",
+        description = "Dados de uma unidade pelo id. Rota publica: o cliente precisa saber onde a loja fica antes de pedir.",
+    )
     @ApiResponses(
         ApiResponse(responseCode = "200", description = "Unidade encontrada"),
         ApiResponse(
@@ -101,7 +104,7 @@ class UnidadeController(
      */
     @PostMapping
     @ResponseStatus(HttpStatus.CREATED)
-    @SecurityRequirement(name = "Bearer Auth")
+    @SecurityRequirement(name = "BearerAuth")
     @Operation(summary = "Cadastrar unidade", description = "Exclusivo do perfil ADMIN.")
     @ApiResponses(
         ApiResponse(responseCode = "201", description = "Unidade cadastrada"),
@@ -134,7 +137,7 @@ class UnidadeController(
      * @return Unidade atualizada.
      */
     @PutMapping("/{unidadeId}")
-    @SecurityRequirement(name = "Bearer Auth")
+    @SecurityRequirement(name = "BearerAuth")
     @Operation(summary = "Atualizar unidade", description = "Exclusivo do perfil ADMIN.")
     @ApiResponses(
         ApiResponse(responseCode = "200", description = "Unidade atualizada"),

@@ -56,7 +56,7 @@ class EstoqueController(
      * @return Pagina de saldos.
      */
     @GetMapping
-    @SecurityRequirement(name = "Bearer Auth")
+    @SecurityRequirement(name = "BearerAuth")
     @Operation(
         summary = "Consultar saldo da unidade",
         description = "Perfis ATENDENTE, COZINHA, GERENTE e ADMIN. Operador so enxerga a " +
@@ -98,7 +98,7 @@ class EstoqueController(
      */
     @PostMapping("/movimentacoes")
     @ResponseStatus(HttpStatus.CREATED)
-    @SecurityRequirement(name = "Bearer Auth")
+    @SecurityRequirement(name = "BearerAuth")
     @Operation(
         summary = "Movimentar estoque",
         description = "Perfis ATENDENTE, GERENTE e ADMIN.\n\n" +
@@ -149,7 +149,7 @@ class EstoqueController(
      * @return Pagina de movimentações, da mais recente para a mais antiga.
      */
     @GetMapping("/{produtoId}/movimentacoes")
-    @SecurityRequirement(name = "Bearer Auth")
+    @SecurityRequirement(name = "BearerAuth")
     @Operation(
         summary = "Histórico de movimentações do produto",
         description = "Perfis GERENTE e ADMIN. Cada linha guarda o saldo que ficou " +

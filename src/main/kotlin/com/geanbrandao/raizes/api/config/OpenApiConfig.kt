@@ -7,6 +7,7 @@ import io.swagger.v3.oas.models.info.Info
 import io.swagger.v3.oas.models.security.SecurityRequirement
 import io.swagger.v3.oas.models.security.SecurityScheme
 import io.swagger.v3.oas.models.servers.Server
+import org.springframework.beans.factory.annotation.Value
 import org.springframework.context.annotation.Bean
 import org.springframework.context.annotation.Configuration
 
@@ -18,7 +19,9 @@ import org.springframework.context.annotation.Configuration
  * sair testando as rotas protegidas sem precisar de Postman.
  */
 @Configuration
-class OpenApiConfig {
+class OpenApiConfig(
+    @Value("\${app.openapi.servidor:http://localhost:8080}") private val servidorPadrao: String,
+) {
 
     /**
      * Descreve a API para o Swagger UI.
@@ -57,13 +60,21 @@ class OpenApiConfig {
                 )
                 .contact(Contact().name("Gean Brandao")),
         )
-        .addServersItem(Server().url("/").description("Servidor atual"))
+        // Precisa ser absoluto. Com "/" sozinho, quem importa o openapi.json num cliente
+        // externo resolve o caminho contra a origem do proprio cliente e as chamadas vao
+        // parar em qualquer lugar menos nesta API. O "/" fica como segunda opcao, para o
+        // Swagger servido atras de outro host continuar funcionando.
+        .addServersItem(Server().url(servidorPadrao).description("Ambiente local"))
+        .addServersItem(Server().url("/").description("Mesma origem que serviu esta pagina"))
         .addSecurityItem(SecurityRequirement().addList(ESQUEMA_BEARER))
         .components(
             Components().addSecuritySchemes(
                 ESQUEMA_BEARER,
+                // Sem .name(): em esquema do tipo HTTP o campo "name" nao e permitido pela
+                // especificacao — ele so vale para type apiKey, onde diz em qual header a
+                // chave viaja. Declarado aqui, o documento fica invalido e os validadores
+                // de OpenAPI acusam propriedade inesperada.
                 SecurityScheme()
-                    .name(ESQUEMA_BEARER)
                     .type(SecurityScheme.Type.HTTP)
                     .scheme("bearer")
                     .bearerFormat("JWT")
@@ -72,6 +83,6 @@ class OpenApiConfig {
         )
 
     companion object {
-        const val ESQUEMA_BEARER = "Bearer Auth"
+        const val ESQUEMA_BEARER = "BearerAuth"
     }
 }

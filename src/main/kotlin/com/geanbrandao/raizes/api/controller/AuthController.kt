@@ -98,7 +98,7 @@ class AuthController(
      */
     @PostMapping("/logout")
     @ResponseStatus(HttpStatus.NO_CONTENT)
-    @SecurityRequirement(name = "Bearer Auth")
+    @SecurityRequirement(name = "BearerAuth")
     @Operation(
         summary = "Encerrar sessão",
         description = "Revoga os refresh tokens do usuario. O access token atual " +

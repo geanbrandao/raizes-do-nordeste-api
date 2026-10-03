@@ -146,7 +146,7 @@ class UsuarioController(
      */
     @PostMapping("/operadores")
     @ResponseStatus(HttpStatus.CREATED)
-    @SecurityRequirement(name = "Bearer Auth")
+    @SecurityRequirement(name = "BearerAuth")
     @Operation(
         summary = "Cadastrar operador",
         description = "Cria um operador (GERENTE, ATENDENTE ou COZINHA) vinculado a uma " +
@@ -184,7 +184,7 @@ class UsuarioController(
      * @return Dados do proprio usuario.
      */
     @GetMapping("/me")
-    @SecurityRequirement(name = "Bearer Auth")
+    @SecurityRequirement(name = "BearerAuth")
     @Operation(summary = "Meu perfil", description = "Dados do usuario autenticado.")
     @ApiResponses(
         ApiResponse(responseCode = "200", description = "Perfil do usuario"),

@@ -48,8 +48,16 @@ class OpenApiTest {
     fun `esquema de bearer auth esta declarado para o botao Authorize aparecer`() {
         mockMvc.perform(get("/v3/api-docs"))
             .andExpect(status().isOk)
-            .andExpect(jsonPath("$.components.securitySchemes['Bearer Auth'].scheme").value("bearer"))
-            .andExpect(jsonPath("$.components.securitySchemes['Bearer Auth'].bearerFormat").value("JWT"))
+            .andExpect(jsonPath("$.components.securitySchemes.BearerAuth.scheme").value("bearer"))
+            .andExpect(jsonPath("$.components.securitySchemes.BearerAuth.bearerFormat").value("JWT"))
+            // O nome do esquema nao pode ter espaco: a especificacao exige ^[a-zA-Z0-9._-]+$,
+            // e validador de OpenAPI recusa o documento inteiro por causa disso.
+            .andExpect(jsonPath("$.components.securitySchemes['Bearer Auth']").doesNotExist())
+            // "name" so vale em esquema do tipo apiKey. Em http, e propriedade invalida.
+            .andExpect(jsonPath("$.components.securitySchemes.BearerAuth.name").doesNotExist())
+            // Servidor absoluto: sem isso, quem importa o openapi.json num cliente externo
+            // resolve os caminhos contra a origem do proprio cliente.
+            .andExpect(jsonPath("$.servers[0].url").value("http://localhost:8080"))
     }
 
     @Test

@@ -51,7 +51,7 @@ class ConsentimentoController(
      */
     @PostMapping
     @ResponseStatus(HttpStatus.CREATED)
-    @SecurityRequirement(name = "Bearer Auth")
+    @SecurityRequirement(name = "BearerAuth")
     @Operation(
         summary = "Registrar consentimento",
         description = "Aceitar `FIDELIDADE` liga a conta de pontos. Sem esse aceite, " +
@@ -81,7 +81,7 @@ class ConsentimentoController(
      * @return Historico completo, ativos e revogados.
      */
     @GetMapping
-    @SecurityRequirement(name = "Bearer Auth")
+    @SecurityRequirement(name = "BearerAuth")
     @Operation(
         summary = "Listar meus consentimentos",
         description = "Traz tambem os revogados: o historico e a prova de que o " +
@@ -102,7 +102,7 @@ class ConsentimentoController(
      * @return Consentimento revogado.
      */
     @DeleteMapping("/{consentimentoId}")
-    @SecurityRequirement(name = "Bearer Auth")
+    @SecurityRequirement(name = "BearerAuth")
     @Operation(
         summary = "Revogar consentimento",
         description = "Não apaga a linha: marca a data de revogação. Revogar " +

@@ -116,7 +116,14 @@ data class ConfirmacaoEmailRequest(
 
     @field:NotBlank(message = "informe o codigo")
     @field:Pattern(regexp = "^\\d{6}$", message = "o codigo tem 6 digitos")
-    @field:Schema(description = "Em ambiente de desenvolvimento o codigo e sempre 258369", example = "258369")
+    // examples (lista), e nao example: o springdoc tenta interpretar o valor de "example"
+    // como JSON, e "258369" vira numero num campo declarado como string — documento
+    // invalido. A forma em lista preserva o tipo.
+    @field:Schema(
+        description = "Em ambiente de desenvolvimento o codigo e sempre 258369",
+        type = "string",
+        examples = ["258369"],
+    )
     val codigo: String,
 )
 

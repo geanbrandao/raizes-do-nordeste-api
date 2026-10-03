@@ -86,7 +86,7 @@ class CardapioController(
      * @return Item do cardapio como ficou.
      */
     @PutMapping("/{produtoId}")
-    @SecurityRequirement(name = "Bearer Auth")
+    @SecurityRequirement(name = "BearerAuth")
     @Operation(
         summary = "Definir item do cardapio",
         description = "Coloca um produto a venda na unidade, reajusta o preço local ou " +
@@ -123,7 +123,7 @@ class CardapioController(
      */
     @DeleteMapping("/{produtoId}")
     @ResponseStatus(HttpStatus.NO_CONTENT)
-    @SecurityRequirement(name = "Bearer Auth")
+    @SecurityRequirement(name = "BearerAuth")
     @Operation(
         summary = "Remover item do cardapio",
         description = "Gerente so mexe na propria unidade; admin mexe em qualquer uma.",

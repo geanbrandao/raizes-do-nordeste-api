@@ -52,7 +52,7 @@ class PagamentoController(
      */
     @PostMapping("/pedidos/{pedidoId}/pagamentos")
     @ResponseStatus(HttpStatus.CREATED)
-    @SecurityRequirement(name = "Bearer Auth")
+    @SecurityRequirement(name = "BearerAuth")
     @Operation(
         summary = "Solicitar pagamento",
         description = "Pede a cobrança ao gateway externo e registra o que voltou.\n\n" +
@@ -99,7 +99,7 @@ class PagamentoController(
      * @return Pagamento.
      */
     @GetMapping("/pagamentos/{pagamentoId}")
-    @SecurityRequirement(name = "Bearer Auth")
+    @SecurityRequirement(name = "BearerAuth")
     @Operation(
         summary = "Consultar pagamento",
         description = "A visibilidade e a mesma do pedido: quem não ve o pedido não ve " +

@@ -56,7 +56,7 @@ class PedidoController(
      */
     @PostMapping
     @ResponseStatus(HttpStatus.CREATED)
-    @SecurityRequirement(name = "Bearer Auth")
+    @SecurityRequirement(name = "BearerAuth")
     @Operation(
         summary = "Criar pedido",
         description = "Perfis CLIENTE e ATENDENTE.\n\n" +
@@ -114,7 +114,7 @@ class PedidoController(
      * @return Pagina de pedidos visiveis a essa pessoa.
      */
     @GetMapping
-    @SecurityRequirement(name = "Bearer Auth")
+    @SecurityRequirement(name = "BearerAuth")
     @Operation(
         summary = "Listar pedidos",
         description = "O que cada um enxerga depende do perfil: cliente ve os pedidos " +
@@ -157,7 +157,7 @@ class PedidoController(
      * @return Pedido.
      */
     @GetMapping("/{pedidoId}")
-    @SecurityRequirement(name = "Bearer Auth")
+    @SecurityRequirement(name = "BearerAuth")
     @Operation(
         summary = "Detalhar pedido",
         description = "Pedido que não pertence a quem esta consultando devolve 404, não " +
@@ -187,7 +187,7 @@ class PedidoController(
      * @return Pedido atualizado.
      */
     @PatchMapping("/{pedidoId}/status")
-    @SecurityRequirement(name = "Bearer Auth")
+    @SecurityRequirement(name = "BearerAuth")
     @Operation(
         summary = "Avançar status do pedido",
         description = "Caminho normal: AGUARDANDO_PAGAMENTO → PAGO → EM_PREPARO → " +
@@ -231,7 +231,7 @@ class PedidoController(
      * @return Pedido cancelado.
      */
     @PostMapping("/{pedidoId}/cancelamento")
-    @SecurityRequirement(name = "Bearer Auth")
+    @SecurityRequirement(name = "BearerAuth")
     @Operation(
         summary = "Cancelar pedido",
         description = "Devolve ao estoque exatamente o que o pedido tinha baixado.\n\n" +

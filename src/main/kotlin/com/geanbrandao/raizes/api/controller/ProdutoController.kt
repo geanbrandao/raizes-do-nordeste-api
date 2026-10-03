@@ -55,7 +55,7 @@ class ProdutoController(
      * @return Pagina de produtos.
      */
     @GetMapping
-    @SecurityRequirement(name = "Bearer Auth")
+    @SecurityRequirement(name = "BearerAuth")
     @Operation(summary = "Listar produtos", description = "Catalogo da rede, com filtro opcional por categoria.")
     @ApiResponses(
         ApiResponse(responseCode = "200", description = "Lista de produtos"),
@@ -83,8 +83,11 @@ class ProdutoController(
      * @return Dados do produto.
      */
     @GetMapping("/{produtoId}")
-    @SecurityRequirement(name = "Bearer Auth")
-    @Operation(summary = "Detalhar produto")
+    @SecurityRequirement(name = "BearerAuth")
+    @Operation(
+        summary = "Detalhar produto",
+        description = "Dados de um produto do catalogo da rede. Traz tambem o que foi inativado, com ativo = false, porque pedido antigo aponta para ele.",
+    )
     @ApiResponses(
         ApiResponse(responseCode = "200", description = "Produto encontrado"),
         ApiResponse(
@@ -106,7 +109,7 @@ class ProdutoController(
      */
     @PostMapping
     @ResponseStatus(HttpStatus.CREATED)
-    @SecurityRequirement(name = "Bearer Auth")
+    @SecurityRequirement(name = "BearerAuth")
     @Operation(summary = "Cadastrar produto", description = "Perfis ADMIN e GERENTE.")
     @ApiResponses(
         ApiResponse(responseCode = "201", description = "Produto cadastrado"),
@@ -134,7 +137,7 @@ class ProdutoController(
      * @return Produto atualizado.
      */
     @PutMapping("/{produtoId}")
-    @SecurityRequirement(name = "Bearer Auth")
+    @SecurityRequirement(name = "BearerAuth")
     @Operation(summary = "Atualizar produto", description = "Perfis ADMIN e GERENTE.")
     @ApiResponses(
         ApiResponse(responseCode = "200", description = "Produto atualizado"),
@@ -166,7 +169,7 @@ class ProdutoController(
      */
     @DeleteMapping("/{produtoId}")
     @ResponseStatus(HttpStatus.NO_CONTENT)
-    @SecurityRequirement(name = "Bearer Auth")
+    @SecurityRequirement(name = "BearerAuth")
     @Operation(
         summary = "Inativar produto",
         description = "Exclusivo do perfil ADMIN. Marca como inativo em vez de apagar, " +

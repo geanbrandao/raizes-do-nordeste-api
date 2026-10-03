@@ -48,7 +48,7 @@ class FidelidadeController(
      * @return Saldo e situação da conta.
      */
     @GetMapping("/saldo")
-    @SecurityRequirement(name = "Bearer Auth")
+    @SecurityRequirement(name = "BearerAuth")
     @Operation(
         summary = "Consultar saldo",
         description = "Conta inativa significa que falta consentimento de FIDELIDADE: " +
@@ -77,7 +77,7 @@ class FidelidadeController(
      * @return Pagina de lançamentos.
      */
     @GetMapping("/extrato")
-    @SecurityRequirement(name = "Bearer Auth")
+    @SecurityRequirement(name = "BearerAuth")
     @Operation(
         summary = "Consultar extrato",
         description = "Cada lançamento guarda o saldo que ficou depois dele, então o " +
@@ -101,8 +101,11 @@ class FidelidadeController(
      * @return Saldo depois do resgate.
      */
     @PostMapping("/resgates")
-    @SecurityRequirement(name = "Bearer Auth")
-    @Operation(summary = "Resgatar pontos")
+    @SecurityRequirement(name = "BearerAuth")
+    @Operation(
+        summary = "Resgatar pontos",
+        description = "Troca pontos por beneficio e devolve o saldo atualizado. Saldo insuficiente responde 409 sem debitar nada.",
+    )
     @ApiResponses(
         ApiResponse(responseCode = "200", description = "Pontos resgatados"),
         ApiResponse(

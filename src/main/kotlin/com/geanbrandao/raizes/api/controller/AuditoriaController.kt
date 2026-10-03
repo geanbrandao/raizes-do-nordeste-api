@@ -50,7 +50,7 @@ class AuditoriaController(
      * @return Pagina de registros, do mais recente para o mais antigo.
      */
     @GetMapping
-    @SecurityRequirement(name = "Bearer Auth")
+    @SecurityRequirement(name = "BearerAuth")
     @Operation(
         summary = "Consultar trilha de auditoria",
         description = "Exclusivo do perfil ADMIN.\n\n" +

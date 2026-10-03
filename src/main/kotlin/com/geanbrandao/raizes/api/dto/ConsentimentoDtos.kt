@@ -29,7 +29,11 @@ data class RegistrarConsentimentoRequest(
     val finalidade: String,
 
     @field:NotBlank(message = "informe a versão do documento")
-    @field:Schema(description = "Versão do texto que a pessoa aceitou", example = "1.0")
+    @field:Schema(
+        description = "Versão do texto que a pessoa aceitou",
+        type = "string",
+        examples = ["1.0"],
+    )
     val versaoDocumento: String,
 )
 
