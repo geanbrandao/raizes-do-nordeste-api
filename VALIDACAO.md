@@ -423,19 +423,23 @@ echo "--- visao da operacao:   $(api "localhost:8080/unidades/$RECIFE/cardapio?i
 
 O item some para o cliente e continua visível para quem administra a loja.
 
-**Religue o item antes de seguir**
+**Desfaca o que esta secao mudou, antes de seguir**
+
+Os dois comandos acima deixaram a tapioca de Recife a R$ 15,50 e indisponivel. Volte ao
+valor do seed:
 
 ```bash
 api -X PUT localhost:8080/unidades/$RECIFE/cardapio/$TAPIOCA \
   -H "Authorization: Bearer $GERENTE" -H 'Content-Type: application/json' \
-  -d '{"preco":15.50,"disponivel":true}' | jq '{nome,preco,disponivel}'
+  -d '{"preco":12.90,"disponivel":true}' | jq '{nome,preco,disponivel}'
 ```
 
-Esperado: 200 com `disponivel: true`.
+Esperado: 200, `preco: 12.90`, `disponivel: true`.
 
-> **Nao pule este passo.** A secao 4.7 monta o pedido com essa mesma tapioca. Se ela
-> ficar indisponivel, o `POST /pedidos` devolve 422 `PRODUTO_FORA_DO_CARDAPIO` e parece
-> que o fluxo de pedido esta quebrado, quando o que sobrou foi o estado deste teste.
+> **Nao pule este passo.** A secao 4.7 monta o pedido com essa mesma tapioca e confere os
+> valores contra o preco do seed. Com o item indisponivel, o `POST /pedidos` devolve 422
+> `PRODUTO_FORA_DO_CARDAPIO`; com o preco em 15,50, o total sai 31,00 em vez de 25,80. Nos
+> dois casos parece defeito da API, quando e so o estado que esta secao deixou para tras.
 
 ---
 
@@ -518,6 +522,11 @@ PEDIDO_ID=$(echo "$PEDIDO" | jq -r .id)
 
 Esperado: `status: "AGUARDANDO_PAGAMENTO"`, `precoUnitario: 12.90`, `total: 25.80`.
 
+O `12.90` e o preco que o seed da a tapioca no cardapio de Recife. Se o seu total vier
+31,00, o preco ficou em 15,50: a secao 4.5 o alterou e o passo de restauracao dela nao
+foi rodado. Confira com
+`api localhost:8080/unidades/$RECIFE/cardapio | jq '.[] | select(.nome|startswith("Tapioca de queijo"))'`.
+
 Repare que **o request não manda preço**. O servidor lê o preço do cardápio daquela
 unidade e congela no item — reajuste posterior não muda pedido antigo.
 
@@ -530,7 +539,7 @@ api -X POST localhost:8080/pedidos -H "Authorization: Bearer $TOKEN" \
   | jq '.itens[0].precoUnitario'
 ```
 
-Esperado: `12.90`. O `precoUnitario` enviado é simplesmente ignorado.
+Esperado: `12.90` — o preco do cardapio. O `precoUnitario` enviado é simplesmente ignorado.
 
 **A criação baixa o estoque**
 
