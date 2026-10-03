@@ -1,0 +1,3844 @@
+{
+    "openapi": "3.1.0",
+    "info": {
+        "title": "API Raizes do Nordeste",
+        "description": "Back-end da rede de lanchonetes Raizes do Nordeste.\n\nAtende varias unidades da franquia e varios canais de venda\n(APP, TOTEM, BALCAO, PICKUP e WEB).\n\nComo testar:\n1. Chame POST /auth/login com um usuario do seed.\n2. Clique em Authorize aqui em cima e cole o accessToken.\n3. As rotas protegidas passam a funcionar.\n\nUsuarios do seed (senha Senha@123):\n- admin@raizes.com.br (ADMIN)\n- gerente.recife@raizes.com.br (GERENTE)\n- atendente.recife@raizes.com.br (ATENDENTE)\n- cozinha.recife@raizes.com.br (COZINHA)\n- cliente@exemplo.com (CLIENTE)",
+        "contact": {
+            "name": "Gean Brandao"
+        },
+        "version": "0.1.0"
+    },
+    "servers": [
+        {
+            "url": "/",
+            "description": "Servidor atual"
+        }
+    ],
+    "security": [
+        {
+            "Bearer Auth": []
+        }
+    ],
+    "tags": [
+        {
+            "name": "Fidelidade",
+            "description": "Pontos, extrato e resgate"
+        },
+        {
+            "name": "Usuarios",
+            "description": "Cadastro de clientes e operadores"
+        },
+        {
+            "name": "Auditoria",
+            "description": "Trilha das a\u00e7\u00f5es sensiveis (somente ADMIN)"
+        },
+        {
+            "name": "Pagamentos",
+            "description": "Solicita\u00e7\u00e3o ao gateway simulado e retorno"
+        },
+        {
+            "name": "Estoque",
+            "description": "Saldo e movimenta\u00e7\u00e3o por unidade"
+        },
+        {
+            "name": "Consentimentos",
+            "description": "LGPD: aceite e revoga\u00e7\u00e3o pelo titular"
+        },
+        {
+            "name": "Unidades",
+            "description": "Lojas da rede"
+        },
+        {
+            "name": "Produtos",
+            "description": "Catalogo da rede"
+        },
+        {
+            "name": "Cardapio",
+            "description": "O que cada unidade vende e por quanto"
+        },
+        {
+            "name": "Auth",
+            "description": "Login, renova\u00e7\u00e3o de token e logout"
+        },
+        {
+            "name": "Pedidos",
+            "description": "Fluxo critico: cria\u00e7\u00e3o, status e cancelamento"
+        }
+    ],
+    "paths": {
+        "/unidades/{unidadeId}": {
+            "get": {
+                "tags": [
+                    "Unidades"
+                ],
+                "summary": "Detalhar unidade",
+                "operationId": "detalhar",
+                "parameters": [
+                    {
+                        "name": "unidadeId",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "string",
+                            "format": "uuid"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Unidade encontrada",
+                        "content": {
+                            "*/*": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/UnidadeResponse"
+                                }
+                            }
+                        }
+                    },
+                    "404": {
+                        "description": "Unidade n\u00e3o encontrada",
+                        "content": {
+                            "*/*": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ErrorResponse"
+                                }
+                            }
+                        }
+                    }
+                },
+                "security": []
+            },
+            "put": {
+                "tags": [
+                    "Unidades"
+                ],
+                "summary": "Atualizar unidade",
+                "description": "Exclusivo do perfil ADMIN.",
+                "operationId": "atualizar",
+                "parameters": [
+                    {
+                        "name": "unidadeId",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "string",
+                            "format": "uuid"
+                        }
+                    }
+                ],
+                "requestBody": {
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "$ref": "#/components/schemas/UnidadeRequest"
+                            }
+                        }
+                    },
+                    "required": true
+                },
+                "responses": {
+                    "200": {
+                        "description": "Unidade atualizada",
+                        "content": {
+                            "*/*": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/UnidadeResponse"
+                                }
+                            }
+                        }
+                    },
+                    "403": {
+                        "description": "Perfil sem permiss\u00e3o",
+                        "content": {
+                            "*/*": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ErrorResponse"
+                                }
+                            }
+                        }
+                    },
+                    "404": {
+                        "description": "Unidade n\u00e3o encontrada",
+                        "content": {
+                            "*/*": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ErrorResponse"
+                                }
+                            }
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "Bearer Auth": []
+                    }
+                ]
+            }
+        },
+        "/unidades/{unidadeId}/cardapio/{produtoId}": {
+            "put": {
+                "tags": [
+                    "Cardapio"
+                ],
+                "summary": "Definir item do cardapio",
+                "description": "Coloca um produto a venda na unidade, reajusta o pre\u00e7o local ou tira do ar. Gerente so mexe na propria unidade; admin mexe em qualquer uma.",
+                "operationId": "definirItem",
+                "parameters": [
+                    {
+                        "name": "unidadeId",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "string",
+                            "format": "uuid"
+                        }
+                    },
+                    {
+                        "name": "produtoId",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "string",
+                            "format": "uuid"
+                        }
+                    }
+                ],
+                "requestBody": {
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "$ref": "#/components/schemas/CardapioItemRequest"
+                            }
+                        }
+                    },
+                    "required": true
+                },
+                "responses": {
+                    "200": {
+                        "description": "Item definido",
+                        "content": {
+                            "*/*": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/CardapioItemResponse"
+                                }
+                            }
+                        }
+                    },
+                    "403": {
+                        "description": "Perfil sem permiss\u00e3o, ou gerente de outra unidade",
+                        "content": {
+                            "*/*": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ErrorResponse"
+                                }
+                            }
+                        }
+                    },
+                    "404": {
+                        "description": "Unidade ou produto n\u00e3o encontrado",
+                        "content": {
+                            "*/*": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ErrorResponse"
+                                }
+                            }
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "Bearer Auth": []
+                    }
+                ]
+            },
+            "delete": {
+                "tags": [
+                    "Cardapio"
+                ],
+                "summary": "Remover item do cardapio",
+                "description": "Gerente so mexe na propria unidade; admin mexe em qualquer uma.",
+                "operationId": "removerItem",
+                "parameters": [
+                    {
+                        "name": "unidadeId",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "string",
+                            "format": "uuid"
+                        }
+                    },
+                    {
+                        "name": "produtoId",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "string",
+                            "format": "uuid"
+                        }
+                    }
+                ],
+                "responses": {
+                    "204": {
+                        "description": "Item removido"
+                    },
+                    "403": {
+                        "description": "Perfil sem permiss\u00e3o, ou gerente de outra unidade",
+                        "content": {
+                            "*/*": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ErrorResponse"
+                                }
+                            }
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "Bearer Auth": []
+                    }
+                ]
+            }
+        },
+        "/produtos/{produtoId}": {
+            "get": {
+                "tags": [
+                    "Produtos"
+                ],
+                "summary": "Detalhar produto",
+                "operationId": "detalhar_1",
+                "parameters": [
+                    {
+                        "name": "produtoId",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "string",
+                            "format": "uuid"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Produto encontrado",
+                        "content": {
+                            "*/*": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ProdutoResponse"
+                                }
+                            }
+                        }
+                    },
+                    "404": {
+                        "description": "Produto n\u00e3o encontrado",
+                        "content": {
+                            "*/*": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ErrorResponse"
+                                }
+                            }
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "Bearer Auth": []
+                    }
+                ]
+            },
+            "put": {
+                "tags": [
+                    "Produtos"
+                ],
+                "summary": "Atualizar produto",
+                "description": "Perfis ADMIN e GERENTE.",
+                "operationId": "atualizar_1",
+                "parameters": [
+                    {
+                        "name": "produtoId",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "string",
+                            "format": "uuid"
+                        }
+                    }
+                ],
+                "requestBody": {
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "$ref": "#/components/schemas/ProdutoRequest"
+                            }
+                        }
+                    },
+                    "required": true
+                },
+                "responses": {
+                    "200": {
+                        "description": "Produto atualizado",
+                        "content": {
+                            "*/*": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ProdutoResponse"
+                                }
+                            }
+                        }
+                    },
+                    "403": {
+                        "description": "Perfil sem permiss\u00e3o",
+                        "content": {
+                            "*/*": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ErrorResponse"
+                                }
+                            }
+                        }
+                    },
+                    "404": {
+                        "description": "Produto n\u00e3o encontrado",
+                        "content": {
+                            "*/*": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ErrorResponse"
+                                }
+                            }
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "Bearer Auth": []
+                    }
+                ]
+            },
+            "delete": {
+                "tags": [
+                    "Produtos"
+                ],
+                "summary": "Inativar produto",
+                "description": "Exclusivo do perfil ADMIN. Marca como inativo em vez de apagar, para n\u00e3o quebrar os pedidos antigos que apontam para o produto.",
+                "operationId": "inativar",
+                "parameters": [
+                    {
+                        "name": "produtoId",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "string",
+                            "format": "uuid"
+                        }
+                    }
+                ],
+                "responses": {
+                    "204": {
+                        "description": "Produto inativado"
+                    },
+                    "403": {
+                        "description": "Perfil sem permiss\u00e3o",
+                        "content": {
+                            "*/*": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ErrorResponse"
+                                }
+                            }
+                        }
+                    },
+                    "404": {
+                        "description": "Produto n\u00e3o encontrado",
+                        "content": {
+                            "*/*": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ErrorResponse"
+                                }
+                            }
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "Bearer Auth": []
+                    }
+                ]
+            }
+        },
+        "/usuarios": {
+            "post": {
+                "tags": [
+                    "Usuarios"
+                ],
+                "summary": "Cadastrar cliente",
+                "description": "Cria uma conta de cliente e envia um codigo de verifica\u00e7\u00e3o.\n\nA resposta e sempre a mesma, exista ou n\u00e3o o e-mail informado: isso evita que o endpoint seja usado para descobrir quais enderecos tem conta.\n\nA conta so consegue fazer login depois de confirmar o codigo em POST /usuarios/verificacao.\n\n**Em ambiente de desenvolvimento o codigo e sempre `258369`.** Ele tambem aparece no log da aplica\u00e7\u00e3o.\n\nA data de nascimento e opcional e so e usada em campanha segmentada, mediante consentimento.",
+                "operationId": "cadastrarCliente",
+                "requestBody": {
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "$ref": "#/components/schemas/CadastroClienteRequest"
+                            }
+                        }
+                    },
+                    "required": true
+                },
+                "responses": {
+                    "202": {
+                        "description": "Cadastro recebido",
+                        "content": {
+                            "*/*": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/CadastroAceitoResponse"
+                                }
+                            }
+                        }
+                    },
+                    "422": {
+                        "description": "Campos invalidos",
+                        "content": {
+                            "*/*": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ErrorResponse"
+                                }
+                            }
+                        }
+                    }
+                },
+                "security": []
+            }
+        },
+        "/usuarios/verificacao": {
+            "post": {
+                "tags": [
+                    "Usuarios"
+                ],
+                "summary": "Confirmar e-mail",
+                "description": "Valida o codigo de verifica\u00e7\u00e3o e libera o login da conta.\n\n**Em ambiente de desenvolvimento o codigo e sempre `258369`.**\n\nCodigo errado e e-mail inexistente devolvem exatamente o mesmo erro, pelo mesmo motivo do cadastro.",
+                "operationId": "confirmarEmail",
+                "requestBody": {
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "$ref": "#/components/schemas/ConfirmacaoEmailRequest"
+                            }
+                        }
+                    },
+                    "required": true
+                },
+                "responses": {
+                    "204": {
+                        "description": "E-mail confirmado"
+                    },
+                    "400": {
+                        "description": "Codigo invalido, expirado ou com tentativas esgotadas",
+                        "content": {
+                            "*/*": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ErrorResponse"
+                                }
+                            }
+                        }
+                    }
+                },
+                "security": []
+            }
+        },
+        "/usuarios/verificacao/reenvio": {
+            "post": {
+                "tags": [
+                    "Usuarios"
+                ],
+                "summary": "Reenviar codigo de verifica\u00e7\u00e3o",
+                "description": "Emite um codigo novo, se a conta existir e ainda n\u00e3o estiver verificada. A resposta e sempre a mesma, nos dois casos.",
+                "operationId": "reenviarCodigo",
+                "requestBody": {
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "$ref": "#/components/schemas/ReenvioCodigoRequest"
+                            }
+                        }
+                    },
+                    "required": true
+                },
+                "responses": {
+                    "202": {
+                        "description": "Pedido recebido",
+                        "content": {
+                            "*/*": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/CadastroAceitoResponse"
+                                }
+                            }
+                        }
+                    }
+                },
+                "security": []
+            }
+        },
+        "/usuarios/operadores": {
+            "post": {
+                "tags": [
+                    "Usuarios"
+                ],
+                "summary": "Cadastrar operador",
+                "description": "Cria um operador (GERENTE, ATENDENTE ou COZINHA) vinculado a uma unidade. Gerente so cadastra na propria unidade; admin cadastra em qualquer uma.",
+                "operationId": "cadastrarOperador",
+                "requestBody": {
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "$ref": "#/components/schemas/CadastroOperadorRequest"
+                            }
+                        }
+                    },
+                    "required": true
+                },
+                "responses": {
+                    "201": {
+                        "description": "Operador cadastrado",
+                        "content": {
+                            "*/*": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/UsuarioResponse"
+                                }
+                            }
+                        }
+                    },
+                    "401": {
+                        "description": "N\u00e3o autenticado",
+                        "content": {
+                            "*/*": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ErrorResponse"
+                                }
+                            }
+                        }
+                    },
+                    "403": {
+                        "description": "Perfil sem permiss\u00e3o, ou gerente tentando cadastrar em outra unidade",
+                        "content": {
+                            "*/*": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ErrorResponse"
+                                }
+                            }
+                        }
+                    },
+                    "404": {
+                        "description": "Unidade n\u00e3o encontrada",
+                        "content": {
+                            "*/*": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ErrorResponse"
+                                }
+                            }
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "Bearer Auth": []
+                    }
+                ]
+            }
+        },
+        "/unidades": {
+            "get": {
+                "tags": [
+                    "Unidades"
+                ],
+                "summary": "Listar unidades",
+                "description": "Devolve as unidades ativas da rede.",
+                "operationId": "listar",
+                "parameters": [
+                    {
+                        "name": "page",
+                        "in": "query",
+                        "description": "Pagina, come\u00e7ando em 1",
+                        "required": false,
+                        "schema": {
+                            "type": "integer",
+                            "format": "int32",
+                            "default": 1
+                        }
+                    },
+                    {
+                        "name": "limit",
+                        "in": "query",
+                        "description": "Itens por pagina, no maximo 100",
+                        "required": false,
+                        "schema": {
+                            "type": "integer",
+                            "format": "int32",
+                            "default": 10
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Lista de unidades",
+                        "content": {
+                            "*/*": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/PaginaResponseUnidadeResponse"
+                                }
+                            }
+                        }
+                    },
+                    "400": {
+                        "description": "Parametros de pagina\u00e7\u00e3o invalidos",
+                        "content": {
+                            "*/*": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ErrorResponse"
+                                }
+                            }
+                        }
+                    }
+                },
+                "security": []
+            },
+            "post": {
+                "tags": [
+                    "Unidades"
+                ],
+                "summary": "Cadastrar unidade",
+                "description": "Exclusivo do perfil ADMIN.",
+                "operationId": "criar",
+                "requestBody": {
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "$ref": "#/components/schemas/UnidadeRequest"
+                            }
+                        }
+                    },
+                    "required": true
+                },
+                "responses": {
+                    "201": {
+                        "description": "Unidade cadastrada",
+                        "content": {
+                            "*/*": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/UnidadeResponse"
+                                }
+                            }
+                        }
+                    },
+                    "401": {
+                        "description": "N\u00e3o autenticado",
+                        "content": {
+                            "*/*": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ErrorResponse"
+                                }
+                            }
+                        }
+                    },
+                    "403": {
+                        "description": "Perfil sem permiss\u00e3o",
+                        "content": {
+                            "*/*": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ErrorResponse"
+                                }
+                            }
+                        }
+                    },
+                    "422": {
+                        "description": "Campos invalidos",
+                        "content": {
+                            "*/*": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ErrorResponse"
+                                }
+                            }
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "Bearer Auth": []
+                    }
+                ]
+            }
+        },
+        "/unidades/{unidadeId}/estoque/movimentacoes": {
+            "post": {
+                "tags": [
+                    "Estoque"
+                ],
+                "summary": "Movimentar estoque",
+                "description": "Perfis ATENDENTE, GERENTE e ADMIN.\n\nENTRADA soma ao saldo, SAIDA subtrai e AJUSTE define o saldo absoluto (caso da contagem de inventario).\n\nSe o produto ainda n\u00e3o tiver saldo nesta unidade, a linha e criada na primeira entrada.",
+                "operationId": "movimentar",
+                "parameters": [
+                    {
+                        "name": "unidadeId",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "string",
+                            "format": "uuid"
+                        }
+                    }
+                ],
+                "requestBody": {
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "$ref": "#/components/schemas/MovimentacaoEstoqueRequest"
+                            }
+                        }
+                    },
+                    "required": true
+                },
+                "responses": {
+                    "201": {
+                        "description": "Movimenta\u00e7\u00e3o registrada",
+                        "content": {
+                            "*/*": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/MovimentacaoEstoqueResponse"
+                                }
+                            }
+                        }
+                    },
+                    "403": {
+                        "description": "Perfil sem permiss\u00e3o, ou operador de outra unidade",
+                        "content": {
+                            "*/*": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ErrorResponse"
+                                }
+                            }
+                        }
+                    },
+                    "404": {
+                        "description": "Unidade ou produto n\u00e3o encontrado",
+                        "content": {
+                            "*/*": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ErrorResponse"
+                                }
+                            }
+                        }
+                    },
+                    "409": {
+                        "description": "Saida maior que o saldo disponivel",
+                        "content": {
+                            "*/*": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ErrorResponse"
+                                }
+                            }
+                        }
+                    },
+                    "422": {
+                        "description": "Campos invalidos",
+                        "content": {
+                            "*/*": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ErrorResponse"
+                                }
+                            }
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "Bearer Auth": []
+                    }
+                ]
+            }
+        },
+        "/produtos": {
+            "get": {
+                "tags": [
+                    "Produtos"
+                ],
+                "summary": "Listar produtos",
+                "description": "Catalogo da rede, com filtro opcional por categoria.",
+                "operationId": "listar_1",
+                "parameters": [
+                    {
+                        "name": "categoria",
+                        "in": "query",
+                        "description": "Filtra por categoria, ex.: TAPIOCA",
+                        "required": false,
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    {
+                        "name": "page",
+                        "in": "query",
+                        "required": false,
+                        "schema": {
+                            "type": "integer",
+                            "format": "int32",
+                            "default": 1
+                        }
+                    },
+                    {
+                        "name": "limit",
+                        "in": "query",
+                        "required": false,
+                        "schema": {
+                            "type": "integer",
+                            "format": "int32",
+                            "default": 10
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Lista de produtos",
+                        "content": {
+                            "*/*": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/PaginaResponseProdutoResponse"
+                                }
+                            }
+                        }
+                    },
+                    "401": {
+                        "description": "N\u00e3o autenticado",
+                        "content": {
+                            "*/*": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ErrorResponse"
+                                }
+                            }
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "Bearer Auth": []
+                    }
+                ]
+            },
+            "post": {
+                "tags": [
+                    "Produtos"
+                ],
+                "summary": "Cadastrar produto",
+                "description": "Perfis ADMIN e GERENTE.",
+                "operationId": "criar_1",
+                "requestBody": {
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "$ref": "#/components/schemas/ProdutoRequest"
+                            }
+                        }
+                    },
+                    "required": true
+                },
+                "responses": {
+                    "201": {
+                        "description": "Produto cadastrado",
+                        "content": {
+                            "*/*": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ProdutoResponse"
+                                }
+                            }
+                        }
+                    },
+                    "403": {
+                        "description": "Perfil sem permiss\u00e3o",
+                        "content": {
+                            "*/*": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ErrorResponse"
+                                }
+                            }
+                        }
+                    },
+                    "422": {
+                        "description": "Campos invalidos",
+                        "content": {
+                            "*/*": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ErrorResponse"
+                                }
+                            }
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "Bearer Auth": []
+                    }
+                ]
+            }
+        },
+        "/pedidos": {
+            "get": {
+                "tags": [
+                    "Pedidos"
+                ],
+                "summary": "Listar pedidos",
+                "description": "O que cada um enxerga depende do perfil: cliente ve os pedidos dele, operador ve os da unidade dele, admin ve a rede toda. O filtro de unidade nunca amplia essa visibilidade.\n\nO filtro por canal atende a rastreabilidade por canal exigida no projeto.",
+                "operationId": "listar_2",
+                "parameters": [
+                    {
+                        "name": "canalPedido",
+                        "in": "query",
+                        "description": "APP, TOTEM, BALCAO, PICKUP ou WEB",
+                        "required": false,
+                        "schema": {
+                            "type": "string",
+                            "enum": [
+                                "APP",
+                                "TOTEM",
+                                "BALCAO",
+                                "PICKUP",
+                                "WEB"
+                            ]
+                        }
+                    },
+                    {
+                        "name": "status",
+                        "in": "query",
+                        "required": false,
+                        "schema": {
+                            "type": "string",
+                            "enum": [
+                                "AGUARDANDO_PAGAMENTO",
+                                "PAGO",
+                                "PAGAMENTO_RECUSADO",
+                                "EM_PREPARO",
+                                "PRONTO",
+                                "ENTREGUE",
+                                "CANCELADO"
+                            ]
+                        }
+                    },
+                    {
+                        "name": "unidadeId",
+                        "in": "query",
+                        "description": "So surte efeito para ADMIN",
+                        "required": false,
+                        "schema": {
+                            "type": "string",
+                            "format": "uuid"
+                        }
+                    },
+                    {
+                        "name": "page",
+                        "in": "query",
+                        "required": false,
+                        "schema": {
+                            "type": "integer",
+                            "format": "int32",
+                            "default": 1
+                        }
+                    },
+                    {
+                        "name": "limit",
+                        "in": "query",
+                        "required": false,
+                        "schema": {
+                            "type": "integer",
+                            "format": "int32",
+                            "default": 10
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Lista de pedidos",
+                        "content": {
+                            "*/*": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/PaginaResponsePedidoResponse"
+                                }
+                            }
+                        }
+                    },
+                    "401": {
+                        "description": "N\u00e3o autenticado",
+                        "content": {
+                            "*/*": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ErrorResponse"
+                                }
+                            }
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "Bearer Auth": []
+                    }
+                ]
+            },
+            "post": {
+                "tags": [
+                    "Pedidos"
+                ],
+                "summary": "Criar pedido",
+                "description": "Perfis CLIENTE e ATENDENTE.\n\nO `canalPedido` e obrigatorio: e por ele que a matriz acompanha a venda por canal.\n\nO pre\u00e7o **n\u00e3o** vem no request. O servidor le o pre\u00e7o do cardapio da unidade e congela no item, ent\u00e3o reajuste posterior n\u00e3o muda pedido antigo.\n\nNa cria\u00e7\u00e3o o estoque ja e baixado. Se faltar saldo em algum item, nada e baixado e a resposta lista todos os itens em falta de uma vez.",
+                "operationId": "criar_2",
+                "requestBody": {
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "$ref": "#/components/schemas/CriarPedidoRequest"
+                            }
+                        }
+                    },
+                    "required": true
+                },
+                "responses": {
+                    "201": {
+                        "description": "Pedido criado em AGUARDANDO_PAGAMENTO",
+                        "content": {
+                            "*/*": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/PedidoResponse"
+                                }
+                            }
+                        }
+                    },
+                    "400": {
+                        "description": "canalPedido invalido ou corpo mal formado",
+                        "content": {
+                            "*/*": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ErrorResponse"
+                                }
+                            }
+                        }
+                    },
+                    "403": {
+                        "description": "Operador tentando registrar pedido de outra unidade",
+                        "content": {
+                            "*/*": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ErrorResponse"
+                                }
+                            }
+                        }
+                    },
+                    "404": {
+                        "description": "Unidade n\u00e3o encontrada",
+                        "content": {
+                            "*/*": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ErrorResponse"
+                                }
+                            }
+                        }
+                    },
+                    "409": {
+                        "description": "Estoque insuficiente, ou unidade inativa",
+                        "content": {
+                            "*/*": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ErrorResponse"
+                                }
+                            }
+                        }
+                    },
+                    "422": {
+                        "description": "Campos invalidos, ou item fora do cardapio da unidade",
+                        "content": {
+                            "*/*": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ErrorResponse"
+                                }
+                            }
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "Bearer Auth": []
+                    }
+                ]
+            }
+        },
+        "/pedidos/{pedidoId}/pagamentos": {
+            "post": {
+                "tags": [
+                    "Pagamentos"
+                ],
+                "summary": "Solicitar pagamento",
+                "description": "Pede a cobran\u00e7a ao gateway externo e registra o que voltou.\n\nO valor cobrado e sempre o total do pedido, calculado pelo servidor.\n\n**Desfechos no gateway simulado**, controlados pelo `tokenPagamento`:\n- `tok_recusa...` \u2192 pagamento RECUSADO, pedido vai para PAGAMENTO_RECUSADO\n- `tok_timeout...` \u2192 gateway n\u00e3o responde, pagamento fica PENDENTE e o pedido n\u00e3o se mexe, aguardando o callback\n- qualquer outro valor, ou nenhum \u2192 pagamento APROVADO, pedido vai para PAGO\n\nMandar a mesma `chaveIdempotencia` duas vezes devolve o resultado que ja existe, em vez de cobrar de novo.",
+                "operationId": "solicitar",
+                "parameters": [
+                    {
+                        "name": "pedidoId",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "string",
+                            "format": "uuid"
+                        }
+                    }
+                ],
+                "requestBody": {
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "$ref": "#/components/schemas/SolicitarPagamentoRequest"
+                            }
+                        }
+                    },
+                    "required": true
+                },
+                "responses": {
+                    "201": {
+                        "description": "Pagamento processado",
+                        "content": {
+                            "*/*": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/PagamentoResponse"
+                                }
+                            }
+                        }
+                    },
+                    "404": {
+                        "description": "Pedido n\u00e3o encontrado ou n\u00e3o visivel",
+                        "content": {
+                            "*/*": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ErrorResponse"
+                                }
+                            }
+                        }
+                    },
+                    "409": {
+                        "description": "Pedido ja pago, ou cancelado",
+                        "content": {
+                            "*/*": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ErrorResponse"
+                                }
+                            }
+                        }
+                    },
+                    "422": {
+                        "description": "Campos invalidos",
+                        "content": {
+                            "*/*": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ErrorResponse"
+                                }
+                            }
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "Bearer Auth": []
+                    }
+                ]
+            }
+        },
+        "/pedidos/{pedidoId}/cancelamento": {
+            "post": {
+                "tags": [
+                    "Pedidos"
+                ],
+                "summary": "Cancelar pedido",
+                "description": "Devolve ao estoque exatamente o que o pedido tinha baixado.\n\nSo vale ate PRONTO: depois disso a comida ja foi preparada, e devolver o estoque seria mentira contabil.",
+                "operationId": "cancelar",
+                "parameters": [
+                    {
+                        "name": "pedidoId",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "string",
+                            "format": "uuid"
+                        }
+                    }
+                ],
+                "requestBody": {
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "$ref": "#/components/schemas/CancelarPedidoRequest"
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "200": {
+                        "description": "Pedido cancelado e estoque devolvido",
+                        "content": {
+                            "*/*": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/PedidoResponse"
+                                }
+                            }
+                        }
+                    },
+                    "404": {
+                        "description": "Pedido n\u00e3o encontrado ou n\u00e3o visivel",
+                        "content": {
+                            "*/*": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ErrorResponse"
+                                }
+                            }
+                        }
+                    },
+                    "409": {
+                        "description": "Pedido ja passou do ponto de cancelamento",
+                        "content": {
+                            "*/*": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ErrorResponse"
+                                }
+                            }
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "Bearer Auth": []
+                    }
+                ]
+            }
+        },
+        "/pagamentos/callback": {
+            "post": {
+                "tags": [
+                    "Pagamentos"
+                ],
+                "summary": "Callback do gateway",
+                "description": "Resolve um pagamento que ficou pendente porque o gateway n\u00e3o respondeu na hora.\n\nProtegido pelo header `X-Gateway-Assinatura`, n\u00e3o por token de usuario: quem chama e o gateway.\n\nCallback repetido para pagamento ja resolvido e ignorado, porque gateway reenvia webhook quando n\u00e3o recebe confirma\u00e7\u00e3o.",
+                "operationId": "callback",
+                "parameters": [
+                    {
+                        "name": "X-Gateway-Assinatura",
+                        "in": "header",
+                        "required": false,
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                ],
+                "requestBody": {
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "$ref": "#/components/schemas/CallbackPagamentoRequest"
+                            }
+                        }
+                    },
+                    "required": true
+                },
+                "responses": {
+                    "200": {
+                        "description": "Callback processado ou ignorado",
+                        "content": {
+                            "*/*": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/PagamentoResponse"
+                                }
+                            }
+                        }
+                    },
+                    "401": {
+                        "description": "Assinatura ausente ou invalida",
+                        "content": {
+                            "*/*": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ErrorResponse"
+                                }
+                            }
+                        }
+                    },
+                    "404": {
+                        "description": "Pagamento n\u00e3o encontrado",
+                        "content": {
+                            "*/*": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ErrorResponse"
+                                }
+                            }
+                        }
+                    }
+                },
+                "security": []
+            }
+        },
+        "/fidelidade/resgates": {
+            "post": {
+                "tags": [
+                    "Fidelidade"
+                ],
+                "summary": "Resgatar pontos",
+                "operationId": "resgatar",
+                "requestBody": {
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "$ref": "#/components/schemas/ResgatarPontosRequest"
+                            }
+                        }
+                    },
+                    "required": true
+                },
+                "responses": {
+                    "200": {
+                        "description": "Pontos resgatados",
+                        "content": {
+                            "*/*": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/SaldoFidelidadeResponse"
+                                }
+                            }
+                        }
+                    },
+                    "409": {
+                        "description": "Saldo insuficiente",
+                        "content": {
+                            "*/*": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ErrorResponse"
+                                }
+                            }
+                        }
+                    },
+                    "422": {
+                        "description": "Campos invalidos",
+                        "content": {
+                            "*/*": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ErrorResponse"
+                                }
+                            }
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "Bearer Auth": []
+                    }
+                ]
+            }
+        },
+        "/consentimentos": {
+            "get": {
+                "tags": [
+                    "Consentimentos"
+                ],
+                "summary": "Listar meus consentimentos",
+                "description": "Traz tambem os revogados: o historico e a prova de que o tratamento foi legitimo enquanto durou.",
+                "operationId": "listar_3",
+                "responses": {
+                    "200": {
+                        "description": "Consentimentos do titular",
+                        "content": {
+                            "*/*": {
+                                "schema": {
+                                    "type": "array",
+                                    "items": {
+                                        "$ref": "#/components/schemas/ConsentimentoResponse"
+                                    }
+                                }
+                            }
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "Bearer Auth": []
+                    }
+                ]
+            },
+            "post": {
+                "tags": [
+                    "Consentimentos"
+                ],
+                "summary": "Registrar consentimento",
+                "description": "Aceitar `FIDELIDADE` liga a conta de pontos. Sem esse aceite, pedido pago n\u00e3o gera ponto nenhum.\n\n`PERFILAMENTO` e o que permite campanha segmentada por idade.\n\nAceitar de novo o que ja vale n\u00e3o cria registro duplicado.",
+                "operationId": "registrar",
+                "requestBody": {
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "$ref": "#/components/schemas/RegistrarConsentimentoRequest"
+                            }
+                        }
+                    },
+                    "required": true
+                },
+                "responses": {
+                    "201": {
+                        "description": "Consentimento registrado",
+                        "content": {
+                            "*/*": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ConsentimentoResponse"
+                                }
+                            }
+                        }
+                    },
+                    "422": {
+                        "description": "Finalidade invalida",
+                        "content": {
+                            "*/*": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ErrorResponse"
+                                }
+                            }
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "Bearer Auth": []
+                    }
+                ]
+            }
+        },
+        "/auth/refresh": {
+            "post": {
+                "tags": [
+                    "Auth"
+                ],
+                "summary": "Renovar acesso",
+                "description": "Troca um refresh token valido por um par novo. O token antigo e revogado.",
+                "operationId": "refresh",
+                "requestBody": {
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "$ref": "#/components/schemas/RefreshRequest"
+                            }
+                        }
+                    },
+                    "required": true
+                },
+                "responses": {
+                    "200": {
+                        "description": "Token renovado",
+                        "content": {
+                            "*/*": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/LoginResponse"
+                                }
+                            }
+                        }
+                    },
+                    "401": {
+                        "description": "Refresh token invalido, revogado ou expirado",
+                        "content": {
+                            "*/*": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ErrorResponse"
+                                }
+                            }
+                        }
+                    }
+                },
+                "security": []
+            }
+        },
+        "/auth/logout": {
+            "post": {
+                "tags": [
+                    "Auth"
+                ],
+                "summary": "Encerrar sess\u00e3o",
+                "description": "Revoga os refresh tokens do usuario. O access token atual continua valido ate expirar.",
+                "operationId": "logout",
+                "responses": {
+                    "204": {
+                        "description": "Sess\u00e3o encerrada"
+                    },
+                    "401": {
+                        "description": "N\u00e3o autenticado",
+                        "content": {
+                            "*/*": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ErrorResponse"
+                                }
+                            }
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "Bearer Auth": []
+                    }
+                ]
+            }
+        },
+        "/auth/login": {
+            "post": {
+                "tags": [
+                    "Auth"
+                ],
+                "summary": "Autenticar",
+                "description": "Valida as credenciais e devolve o access token e o refresh token.",
+                "operationId": "login",
+                "requestBody": {
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "$ref": "#/components/schemas/LoginRequest"
+                            }
+                        }
+                    },
+                    "required": true
+                },
+                "responses": {
+                    "200": {
+                        "description": "Autenticado",
+                        "content": {
+                            "*/*": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/LoginResponse"
+                                }
+                            }
+                        }
+                    },
+                    "401": {
+                        "description": "Credenciais invalidas ou conta desativada",
+                        "content": {
+                            "*/*": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ErrorResponse"
+                                }
+                            }
+                        }
+                    },
+                    "422": {
+                        "description": "Campos invalidos",
+                        "content": {
+                            "*/*": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ErrorResponse"
+                                }
+                            }
+                        }
+                    }
+                },
+                "security": []
+            }
+        },
+        "/pedidos/{pedidoId}/status": {
+            "patch": {
+                "tags": [
+                    "Pedidos"
+                ],
+                "summary": "Avan\u00e7ar status do pedido",
+                "description": "Caminho normal: AGUARDANDO_PAGAMENTO \u2192 PAGO \u2192 EM_PREPARO \u2192 PRONTO \u2192 ENTREGUE.\n\nTransi\u00e7\u00e3o fora do fluxo devolve 409 e a resposta lista quais status s\u00e3o possiveis a partir do atual. Cada perfil so move o pedido para os status que s\u00e3o trabalho dele: cozinha prepara e marca pronto, atendente entrega.",
+                "operationId": "atualizarStatus",
+                "parameters": [
+                    {
+                        "name": "pedidoId",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "string",
+                            "format": "uuid"
+                        }
+                    }
+                ],
+                "requestBody": {
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "$ref": "#/components/schemas/AtualizarStatusRequest"
+                            }
+                        }
+                    },
+                    "required": true
+                },
+                "responses": {
+                    "200": {
+                        "description": "Status atualizado",
+                        "content": {
+                            "*/*": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/PedidoResponse"
+                                }
+                            }
+                        }
+                    },
+                    "403": {
+                        "description": "Perfil n\u00e3o pode fazer essa transi\u00e7\u00e3o",
+                        "content": {
+                            "*/*": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ErrorResponse"
+                                }
+                            }
+                        }
+                    },
+                    "404": {
+                        "description": "Pedido n\u00e3o encontrado ou n\u00e3o visivel",
+                        "content": {
+                            "*/*": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ErrorResponse"
+                                }
+                            }
+                        }
+                    },
+                    "409": {
+                        "description": "Transi\u00e7\u00e3o invalida no fluxo",
+                        "content": {
+                            "*/*": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ErrorResponse"
+                                }
+                            }
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "Bearer Auth": []
+                    }
+                ]
+            }
+        },
+        "/usuarios/me": {
+            "get": {
+                "tags": [
+                    "Usuarios"
+                ],
+                "summary": "Meu perfil",
+                "description": "Dados do usuario autenticado.",
+                "operationId": "meuPerfil",
+                "responses": {
+                    "200": {
+                        "description": "Perfil do usuario",
+                        "content": {
+                            "*/*": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/UsuarioResponse"
+                                }
+                            }
+                        }
+                    },
+                    "401": {
+                        "description": "N\u00e3o autenticado",
+                        "content": {
+                            "*/*": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ErrorResponse"
+                                }
+                            }
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "Bearer Auth": []
+                    }
+                ]
+            }
+        },
+        "/unidades/{unidadeId}/estoque": {
+            "get": {
+                "tags": [
+                    "Estoque"
+                ],
+                "summary": "Consultar saldo da unidade",
+                "description": "Perfis ATENDENTE, COZINHA, GERENTE e ADMIN. Operador so enxerga a propria unidade; admin enxerga qualquer uma.",
+                "operationId": "listarSaldos",
+                "parameters": [
+                    {
+                        "name": "unidadeId",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "string",
+                            "format": "uuid"
+                        }
+                    },
+                    {
+                        "name": "page",
+                        "in": "query",
+                        "required": false,
+                        "schema": {
+                            "type": "integer",
+                            "format": "int32",
+                            "default": 1
+                        }
+                    },
+                    {
+                        "name": "limit",
+                        "in": "query",
+                        "required": false,
+                        "schema": {
+                            "type": "integer",
+                            "format": "int32",
+                            "default": 10
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Saldos da unidade",
+                        "content": {
+                            "*/*": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/PaginaResponseEstoqueResponse"
+                                }
+                            }
+                        }
+                    },
+                    "403": {
+                        "description": "Perfil sem permiss\u00e3o, ou operador de outra unidade",
+                        "content": {
+                            "*/*": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ErrorResponse"
+                                }
+                            }
+                        }
+                    },
+                    "404": {
+                        "description": "Unidade n\u00e3o encontrada",
+                        "content": {
+                            "*/*": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ErrorResponse"
+                                }
+                            }
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "Bearer Auth": []
+                    }
+                ]
+            }
+        },
+        "/unidades/{unidadeId}/estoque/{produtoId}/movimentacoes": {
+            "get": {
+                "tags": [
+                    "Estoque"
+                ],
+                "summary": "Hist\u00f3rico de movimenta\u00e7\u00f5es do produto",
+                "description": "Perfis GERENTE e ADMIN. Cada linha guarda o saldo que ficou depois dela, ent\u00e3o o hist\u00f3rico e conferivel sem recalcular nada.",
+                "operationId": "listarMovimentacoes",
+                "parameters": [
+                    {
+                        "name": "unidadeId",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "string",
+                            "format": "uuid"
+                        }
+                    },
+                    {
+                        "name": "produtoId",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "string",
+                            "format": "uuid"
+                        }
+                    },
+                    {
+                        "name": "page",
+                        "in": "query",
+                        "description": "Pagina, come\u00e7ando em 1",
+                        "required": false,
+                        "schema": {
+                            "type": "integer",
+                            "format": "int32",
+                            "default": 1
+                        }
+                    },
+                    {
+                        "name": "limit",
+                        "in": "query",
+                        "required": false,
+                        "schema": {
+                            "type": "integer",
+                            "format": "int32",
+                            "default": 10
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Hist\u00f3rico do produto",
+                        "content": {
+                            "*/*": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/PaginaResponseMovimentacaoEstoqueResponse"
+                                }
+                            }
+                        }
+                    },
+                    "403": {
+                        "description": "Perfil sem permiss\u00e3o, ou operador de outra unidade",
+                        "content": {
+                            "*/*": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ErrorResponse"
+                                }
+                            }
+                        }
+                    },
+                    "404": {
+                        "description": "Produto sem estoque nesta unidade",
+                        "content": {
+                            "*/*": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ErrorResponse"
+                                }
+                            }
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "Bearer Auth": []
+                    }
+                ]
+            }
+        },
+        "/unidades/{unidadeId}/cardapio": {
+            "get": {
+                "tags": [
+                    "Cardapio"
+                ],
+                "summary": "Consultar cardapio da unidade",
+                "description": "Devolve o que a unidade vende, com o pre\u00e7o praticado nela. Por padr\u00e3o traz so os itens disponiveis.",
+                "operationId": "listar_4",
+                "parameters": [
+                    {
+                        "name": "unidadeId",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "string",
+                            "format": "uuid"
+                        }
+                    },
+                    {
+                        "name": "incluirIndisponiveis",
+                        "in": "query",
+                        "description": "Inclui os itens fora do ar, para a opera\u00e7\u00e3o da loja",
+                        "required": false,
+                        "schema": {
+                            "type": "boolean",
+                            "default": false
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Cardapio da unidade",
+                        "content": {
+                            "*/*": {
+                                "schema": {
+                                    "type": "array",
+                                    "items": {
+                                        "$ref": "#/components/schemas/CardapioItemResponse"
+                                    }
+                                }
+                            }
+                        }
+                    },
+                    "404": {
+                        "description": "Unidade n\u00e3o encontrada",
+                        "content": {
+                            "*/*": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ErrorResponse"
+                                }
+                            }
+                        }
+                    }
+                },
+                "security": []
+            }
+        },
+        "/pedidos/{pedidoId}": {
+            "get": {
+                "tags": [
+                    "Pedidos"
+                ],
+                "summary": "Detalhar pedido",
+                "description": "Pedido que n\u00e3o pertence a quem esta consultando devolve 404, n\u00e3o 403: dizer 'existe mas n\u00e3o e seu' ja confirmaria a existencia dele.",
+                "operationId": "detalhar_2",
+                "parameters": [
+                    {
+                        "name": "pedidoId",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "string",
+                            "format": "uuid"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Pedido encontrado",
+                        "content": {
+                            "*/*": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/PedidoResponse"
+                                }
+                            }
+                        }
+                    },
+                    "404": {
+                        "description": "Pedido n\u00e3o encontrado ou n\u00e3o visivel a esse perfil",
+                        "content": {
+                            "*/*": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ErrorResponse"
+                                }
+                            }
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "Bearer Auth": []
+                    }
+                ]
+            }
+        },
+        "/pagamentos/{pagamentoId}": {
+            "get": {
+                "tags": [
+                    "Pagamentos"
+                ],
+                "summary": "Consultar pagamento",
+                "description": "A visibilidade e a mesma do pedido: quem n\u00e3o ve o pedido n\u00e3o ve quanto foi cobrado nele.",
+                "operationId": "detalhar_3",
+                "parameters": [
+                    {
+                        "name": "pagamentoId",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "string",
+                            "format": "uuid"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Pagamento encontrado",
+                        "content": {
+                            "*/*": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/PagamentoResponse"
+                                }
+                            }
+                        }
+                    },
+                    "404": {
+                        "description": "Pagamento n\u00e3o encontrado ou n\u00e3o visivel",
+                        "content": {
+                            "*/*": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ErrorResponse"
+                                }
+                            }
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "Bearer Auth": []
+                    }
+                ]
+            }
+        },
+        "/fidelidade/saldo": {
+            "get": {
+                "tags": [
+                    "Fidelidade"
+                ],
+                "summary": "Consultar saldo",
+                "description": "Conta inativa significa que falta consentimento de FIDELIDADE: o saldo continua visivel, mas nada novo e creditado.",
+                "operationId": "saldo",
+                "responses": {
+                    "200": {
+                        "description": "Saldo do cliente",
+                        "content": {
+                            "*/*": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/SaldoFidelidadeResponse"
+                                }
+                            }
+                        }
+                    },
+                    "404": {
+                        "description": "Usuario sem conta no programa",
+                        "content": {
+                            "*/*": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ErrorResponse"
+                                }
+                            }
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "Bearer Auth": []
+                    }
+                ]
+            }
+        },
+        "/fidelidade/extrato": {
+            "get": {
+                "tags": [
+                    "Fidelidade"
+                ],
+                "summary": "Consultar extrato",
+                "description": "Cada lan\u00e7amento guarda o saldo que ficou depois dele, ent\u00e3o o extrato e conferivel linha a linha.",
+                "operationId": "extrato",
+                "parameters": [
+                    {
+                        "name": "page",
+                        "in": "query",
+                        "required": false,
+                        "schema": {
+                            "type": "integer",
+                            "format": "int32",
+                            "default": 1
+                        }
+                    },
+                    {
+                        "name": "limit",
+                        "in": "query",
+                        "required": false,
+                        "schema": {
+                            "type": "integer",
+                            "format": "int32",
+                            "default": 10
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Extrato do cliente",
+                        "content": {
+                            "*/*": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/PaginaResponseMovimentacaoPontosResponse"
+                                }
+                            }
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "Bearer Auth": []
+                    }
+                ]
+            }
+        },
+        "/auditoria": {
+            "get": {
+                "tags": [
+                    "Auditoria"
+                ],
+                "summary": "Consultar trilha de auditoria",
+                "description": "Exclusivo do perfil ADMIN.\n\nA\u00e7\u00f5es rastreadas: cria\u00e7\u00e3o, cancelamento e mudan\u00e7a de status de pedido, movimenta\u00e7\u00e3o de estoque, solicita\u00e7\u00e3o de pagamento, ac\u00famulo e resgate de pontos, registro e revoga\u00e7\u00e3o de consentimento.",
+                "operationId": "consultar",
+                "parameters": [
+                    {
+                        "name": "usuarioId",
+                        "in": "query",
+                        "description": "Filtra por quem fez a a\u00e7\u00e3o",
+                        "required": false,
+                        "schema": {
+                            "type": "string",
+                            "format": "uuid"
+                        }
+                    },
+                    {
+                        "name": "entidade",
+                        "in": "query",
+                        "description": "PEDIDO, ESTOQUE, PAGAMENTO, FIDELIDADE ou CONSENTIMENTO",
+                        "required": false,
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    {
+                        "name": "page",
+                        "in": "query",
+                        "required": false,
+                        "schema": {
+                            "type": "integer",
+                            "format": "int32",
+                            "default": 1
+                        }
+                    },
+                    {
+                        "name": "limit",
+                        "in": "query",
+                        "required": false,
+                        "schema": {
+                            "type": "integer",
+                            "format": "int32",
+                            "default": 10
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Registros da trilha",
+                        "content": {
+                            "*/*": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/PaginaResponseLogAuditoriaResponse"
+                                }
+                            }
+                        }
+                    },
+                    "403": {
+                        "description": "Perfil sem permiss\u00e3o",
+                        "content": {
+                            "*/*": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ErrorResponse"
+                                }
+                            }
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "Bearer Auth": []
+                    }
+                ]
+            }
+        },
+        "/consentimentos/{consentimentoId}": {
+            "delete": {
+                "tags": [
+                    "Consentimentos"
+                ],
+                "summary": "Revogar consentimento",
+                "description": "N\u00e3o apaga a linha: marca a data de revoga\u00e7\u00e3o. Revogar `FIDELIDADE` desliga a conta na hora \u2014 o saldo ja acumulado continua, mas nada novo e creditado.",
+                "operationId": "revogar",
+                "parameters": [
+                    {
+                        "name": "consentimentoId",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "string",
+                            "format": "uuid"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Consentimento revogado",
+                        "content": {
+                            "*/*": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ConsentimentoResponse"
+                                }
+                            }
+                        }
+                    },
+                    "404": {
+                        "description": "Consentimento n\u00e3o encontrado ou de outro titular",
+                        "content": {
+                            "*/*": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ErrorResponse"
+                                }
+                            }
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "Bearer Auth": []
+                    }
+                ]
+            }
+        }
+    },
+    "components": {
+        "schemas": {
+            "UnidadeRequest": {
+                "type": "object",
+                "description": "Dados de uma unidade",
+                "properties": {
+                    "nome": {
+                        "type": "string",
+                        "example": "Raizes Boa Viagem",
+                        "maxLength": 120,
+                        "minLength": 3
+                    },
+                    "cidade": {
+                        "type": "string",
+                        "example": "Recife",
+                        "maxLength": 120,
+                        "minLength": 0
+                    },
+                    "uf": {
+                        "type": "string",
+                        "example": "PE",
+                        "minLength": 1,
+                        "pattern": "^[A-Za-z]{2}$"
+                    },
+                    "tipoOperacao": {
+                        "type": "string",
+                        "description": "COMPLETA prepara o cardapio inteiro; REDUZIDA prepara so parte dele",
+                        "enum": [
+                            "COMPLETA",
+                            "REDUZIDA"
+                        ],
+                        "example": "COMPLETA"
+                    }
+                },
+                "required": [
+                    "cidade",
+                    "nome",
+                    "tipoOperacao",
+                    "uf"
+                ]
+            },
+            "ErrorDetail": {
+                "type": "object",
+                "description": "Detalhe de um campo invalido",
+                "properties": {
+                    "field": {
+                        "type": "string",
+                        "example": "itens[0].quantidade"
+                    },
+                    "issue": {
+                        "type": "string",
+                        "example": "deve ser maior que zero"
+                    }
+                },
+                "required": [
+                    "field",
+                    "issue"
+                ]
+            },
+            "ErrorResponse": {
+                "type": "object",
+                "description": "Formato padr\u00e3o de erro da API",
+                "properties": {
+                    "error": {
+                        "type": "string",
+                        "example": "ESTOQUE_INSUFICIENTE"
+                    },
+                    "message": {
+                        "type": "string",
+                        "example": "N\u00e3o ha quantidade suficiente para um ou mais itens."
+                    },
+                    "details": {
+                        "type": "array",
+                        "items": {
+                            "$ref": "#/components/schemas/ErrorDetail"
+                        }
+                    },
+                    "timestamp": {
+                        "type": "string",
+                        "format": "date-time",
+                        "example": "2026-02-05T12:00:00Z"
+                    },
+                    "path": {
+                        "type": "string",
+                        "example": "/pedidos"
+                    },
+                    "requestId": {
+                        "type": "string",
+                        "example": "3f1a2b4c-5d6e-7f80-91a2-b3c4d5e6f708"
+                    }
+                },
+                "required": [
+                    "details",
+                    "error",
+                    "message",
+                    "timestamp"
+                ]
+            },
+            "UnidadeResponse": {
+                "type": "object",
+                "description": "Unidade da rede",
+                "properties": {
+                    "id": {
+                        "type": "string",
+                        "format": "uuid"
+                    },
+                    "nome": {
+                        "type": "string"
+                    },
+                    "cidade": {
+                        "type": "string"
+                    },
+                    "uf": {
+                        "type": "string"
+                    },
+                    "tipoOperacao": {
+                        "type": "string",
+                        "enum": [
+                            "COMPLETA",
+                            "REDUZIDA"
+                        ]
+                    },
+                    "ativa": {
+                        "type": "boolean"
+                    }
+                },
+                "required": [
+                    "ativa",
+                    "cidade",
+                    "id",
+                    "nome",
+                    "tipoOperacao",
+                    "uf"
+                ]
+            },
+            "CardapioItemRequest": {
+                "type": "object",
+                "description": "Pre\u00e7o e disponibilidade de um produto numa unidade",
+                "properties": {
+                    "preco": {
+                        "type": "number",
+                        "example": 12.9,
+                        "minimum": 0.0
+                    },
+                    "disponivel": {
+                        "type": "boolean",
+                        "description": "false tira o item do cardapio sem apagar o cadastro"
+                    }
+                },
+                "required": [
+                    "disponivel",
+                    "preco"
+                ]
+            },
+            "CardapioItemResponse": {
+                "type": "object",
+                "description": "Item do cardapio de uma unidade",
+                "properties": {
+                    "produtoId": {
+                        "type": "string",
+                        "format": "uuid"
+                    },
+                    "nome": {
+                        "type": "string"
+                    },
+                    "descricao": {
+                        "type": "string"
+                    },
+                    "categoria": {
+                        "type": "string"
+                    },
+                    "preco": {
+                        "type": "number",
+                        "description": "Pre\u00e7o praticado nesta unidade",
+                        "example": 12.9
+                    },
+                    "sazonal": {
+                        "type": "boolean"
+                    },
+                    "disponivel": {
+                        "type": "boolean",
+                        "description": "Se o item esta sendo vendido agora nesta unidade"
+                    }
+                },
+                "required": [
+                    "categoria",
+                    "disponivel",
+                    "nome",
+                    "preco",
+                    "produtoId",
+                    "sazonal"
+                ]
+            },
+            "ProdutoRequest": {
+                "type": "object",
+                "description": "Dados de um produto",
+                "properties": {
+                    "nome": {
+                        "type": "string",
+                        "example": "Tapioca de queijo coalho",
+                        "maxLength": 120,
+                        "minLength": 2
+                    },
+                    "descricao": {
+                        "type": "string",
+                        "maxLength": 500,
+                        "minLength": 0
+                    },
+                    "categoria": {
+                        "type": "string",
+                        "example": "TAPIOCA",
+                        "maxLength": 60,
+                        "minLength": 0
+                    },
+                    "precoBase": {
+                        "type": "number",
+                        "description": "Pre\u00e7o sugerido pela matriz. Cada unidade pode praticar outro no cardapio.",
+                        "example": 12.9,
+                        "minimum": 0.0
+                    },
+                    "sazonal": {
+                        "type": "boolean",
+                        "description": "Produto vendido so em epoca especifica, tipo o periodo junino"
+                    }
+                },
+                "required": [
+                    "categoria",
+                    "nome",
+                    "precoBase",
+                    "sazonal"
+                ]
+            },
+            "ProdutoResponse": {
+                "type": "object",
+                "description": "Produto do catalogo da rede",
+                "properties": {
+                    "id": {
+                        "type": "string",
+                        "format": "uuid"
+                    },
+                    "nome": {
+                        "type": "string"
+                    },
+                    "descricao": {
+                        "type": "string"
+                    },
+                    "categoria": {
+                        "type": "string"
+                    },
+                    "precoBase": {
+                        "type": "number"
+                    },
+                    "sazonal": {
+                        "type": "boolean"
+                    },
+                    "ativo": {
+                        "type": "boolean"
+                    }
+                },
+                "required": [
+                    "ativo",
+                    "categoria",
+                    "id",
+                    "nome",
+                    "precoBase",
+                    "sazonal"
+                ]
+            },
+            "CadastroClienteRequest": {
+                "type": "object",
+                "description": "Cadastro de um novo cliente",
+                "properties": {
+                    "nome": {
+                        "type": "string",
+                        "example": "Maria Cliente",
+                        "maxLength": 120,
+                        "minLength": 3
+                    },
+                    "email": {
+                        "type": "string",
+                        "example": "maria@exemplo.com",
+                        "maxLength": 254,
+                        "minLength": 0
+                    },
+                    "senha": {
+                        "type": "string",
+                        "example": "Senha@123",
+                        "maxLength": 72,
+                        "minLength": 8,
+                        "pattern": "^(?=.*[a-z])(?=.*[A-Z])(?=.*\\d).+$"
+                    },
+                    "dataNascimento": {
+                        "type": "string",
+                        "format": "date",
+                        "description": "Opcional. So usado em campanha segmentada, com consentimento."
+                    }
+                },
+                "required": [
+                    "email",
+                    "nome",
+                    "senha"
+                ]
+            },
+            "CadastroAceitoResponse": {
+                "type": "object",
+                "description": "Confirma\u00e7\u00e3o generica do cadastro",
+                "properties": {
+                    "mensagem": {
+                        "type": "string",
+                        "example": "Se o e-mail informado puder ser usado, enviamos um codigo de verifica\u00e7\u00e3o para ele."
+                    }
+                },
+                "required": [
+                    "mensagem"
+                ]
+            },
+            "ConfirmacaoEmailRequest": {
+                "type": "object",
+                "description": "Confirma\u00e7\u00e3o de e-mail",
+                "properties": {
+                    "email": {
+                        "type": "string",
+                        "example": "joana@exemplo.com",
+                        "minLength": 1
+                    },
+                    "codigo": {
+                        "type": "string",
+                        "description": "Em ambiente de desenvolvimento o codigo e sempre 258369",
+                        "example": 258369,
+                        "minLength": 1,
+                        "pattern": "^\\d{6}$"
+                    }
+                },
+                "required": [
+                    "codigo",
+                    "email"
+                ]
+            },
+            "ReenvioCodigoRequest": {
+                "type": "object",
+                "description": "Reenvio do codigo de verifica\u00e7\u00e3o",
+                "properties": {
+                    "email": {
+                        "type": "string",
+                        "minLength": 1
+                    }
+                },
+                "required": [
+                    "email"
+                ]
+            },
+            "CadastroOperadorRequest": {
+                "type": "object",
+                "description": "Cadastro de um operador de unidade",
+                "properties": {
+                    "nome": {
+                        "type": "string",
+                        "maxLength": 120,
+                        "minLength": 3
+                    },
+                    "email": {
+                        "type": "string",
+                        "minLength": 1
+                    },
+                    "senha": {
+                        "type": "string",
+                        "maxLength": 72,
+                        "minLength": 8
+                    },
+                    "perfil": {
+                        "type": "string",
+                        "description": "GERENTE, ATENDENTE ou COZINHA",
+                        "enum": [
+                            "ADMIN",
+                            "GERENTE",
+                            "ATENDENTE",
+                            "COZINHA",
+                            "CLIENTE"
+                        ],
+                        "example": "ATENDENTE"
+                    },
+                    "unidadeId": {
+                        "type": "string",
+                        "format": "uuid"
+                    }
+                },
+                "required": [
+                    "email",
+                    "nome",
+                    "perfil",
+                    "senha",
+                    "unidadeId"
+                ]
+            },
+            "UsuarioResponse": {
+                "type": "object",
+                "description": "Perfil do usuario autenticado",
+                "properties": {
+                    "id": {
+                        "type": "string",
+                        "format": "uuid"
+                    },
+                    "nome": {
+                        "type": "string"
+                    },
+                    "email": {
+                        "type": "string"
+                    },
+                    "perfil": {
+                        "type": "string",
+                        "enum": [
+                            "ADMIN",
+                            "GERENTE",
+                            "ATENDENTE",
+                            "COZINHA",
+                            "CLIENTE"
+                        ]
+                    },
+                    "unidadeId": {
+                        "type": "string",
+                        "format": "uuid"
+                    },
+                    "dataNascimento": {
+                        "type": "string",
+                        "format": "date"
+                    },
+                    "ativo": {
+                        "type": "boolean"
+                    }
+                },
+                "required": [
+                    "ativo",
+                    "email",
+                    "id",
+                    "nome",
+                    "perfil"
+                ]
+            },
+            "MovimentacaoEstoqueRequest": {
+                "type": "object",
+                "description": "Movimenta\u00e7\u00e3o de estoque",
+                "properties": {
+                    "produtoId": {
+                        "type": "string",
+                        "format": "uuid"
+                    },
+                    "tipo": {
+                        "type": "string",
+                        "description": "ENTRADA soma, SAIDA subtrai, AJUSTE define o saldo absoluto",
+                        "enum": [
+                            "ENTRADA",
+                            "SAIDA",
+                            "AJUSTE"
+                        ],
+                        "example": "ENTRADA"
+                    },
+                    "quantidade": {
+                        "type": "integer",
+                        "format": "int32",
+                        "description": "Em ENTRADA e SAIDA, quanto movimentar (maior que zero). Em AJUSTE, o saldo que passa a valer, e ai zero e aceito: a contagem de inventario pode dar zero.",
+                        "example": 20,
+                        "minimum": 0
+                    },
+                    "motivo": {
+                        "type": "string",
+                        "example": "Recebimento do fornecedor",
+                        "maxLength": 255,
+                        "minLength": 0
+                    }
+                },
+                "required": [
+                    "produtoId",
+                    "quantidade",
+                    "tipo"
+                ]
+            },
+            "MovimentacaoEstoqueResponse": {
+                "type": "object",
+                "description": "Movimenta\u00e7\u00e3o registrada",
+                "properties": {
+                    "id": {
+                        "type": "string",
+                        "format": "uuid"
+                    },
+                    "produtoId": {
+                        "type": "string",
+                        "format": "uuid"
+                    },
+                    "nome": {
+                        "type": "string"
+                    },
+                    "tipo": {
+                        "type": "string",
+                        "enum": [
+                            "ENTRADA",
+                            "SAIDA",
+                            "AJUSTE"
+                        ]
+                    },
+                    "quantidade": {
+                        "type": "integer",
+                        "format": "int32"
+                    },
+                    "saldoApos": {
+                        "type": "integer",
+                        "format": "int32",
+                        "description": "Saldo que ficou depois desta movimenta\u00e7\u00e3o",
+                        "example": 70
+                    },
+                    "motivo": {
+                        "type": "string"
+                    },
+                    "pedidoId": {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Preenchido quando a movimenta\u00e7\u00e3o veio de um pedido"
+                    },
+                    "criadoEm": {
+                        "type": "string",
+                        "format": "date-time"
+                    }
+                },
+                "required": [
+                    "criadoEm",
+                    "id",
+                    "nome",
+                    "produtoId",
+                    "quantidade",
+                    "saldoApos",
+                    "tipo"
+                ]
+            },
+            "CriarPedidoRequest": {
+                "type": "object",
+                "description": "Novo pedido",
+                "properties": {
+                    "unidadeId": {
+                        "type": "string",
+                        "format": "uuid"
+                    },
+                    "canalPedido": {
+                        "type": "string",
+                        "description": "Por onde o pedido entrou. Obrigatorio: e o que permite a matriz acompanhar a venda por canal.",
+                        "enum": [
+                            "APP",
+                            "TOTEM",
+                            "BALCAO",
+                            "PICKUP",
+                            "WEB"
+                        ],
+                        "example": "APP"
+                    },
+                    "itens": {
+                        "type": "array",
+                        "items": {
+                            "$ref": "#/components/schemas/ItemPedidoRequest"
+                        },
+                        "maxItems": 50,
+                        "minItems": 0
+                    },
+                    "clienteId": {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "So usado quando um atendente registra pedido de balc\u00e3o para um cliente identificado. Cliente logado nunca precisa informar: o pedido sai no nome dele."
+                    }
+                },
+                "required": [
+                    "canalPedido",
+                    "itens",
+                    "unidadeId"
+                ]
+            },
+            "ItemPedidoRequest": {
+                "type": "object",
+                "description": "Item do pedido",
+                "properties": {
+                    "produtoId": {
+                        "type": "string",
+                        "format": "uuid"
+                    },
+                    "quantidade": {
+                        "type": "integer",
+                        "format": "int32",
+                        "example": 2,
+                        "minimum": 1
+                    }
+                },
+                "required": [
+                    "produtoId",
+                    "quantidade"
+                ]
+            },
+            "ItemPedidoResponse": {
+                "type": "object",
+                "description": "Item do pedido",
+                "properties": {
+                    "produtoId": {
+                        "type": "string",
+                        "format": "uuid"
+                    },
+                    "nome": {
+                        "type": "string"
+                    },
+                    "quantidade": {
+                        "type": "integer",
+                        "format": "int32"
+                    },
+                    "precoUnitario": {
+                        "type": "number",
+                        "description": "Pre\u00e7o praticado no momento da compra",
+                        "example": 12.9
+                    },
+                    "subtotal": {
+                        "type": "number"
+                    }
+                },
+                "required": [
+                    "nome",
+                    "precoUnitario",
+                    "produtoId",
+                    "quantidade",
+                    "subtotal"
+                ]
+            },
+            "PedidoResponse": {
+                "type": "object",
+                "description": "Pedido",
+                "properties": {
+                    "id": {
+                        "type": "string",
+                        "format": "uuid"
+                    },
+                    "unidadeId": {
+                        "type": "string",
+                        "format": "uuid"
+                    },
+                    "clienteId": {
+                        "type": "string",
+                        "format": "uuid"
+                    },
+                    "canalPedido": {
+                        "type": "string",
+                        "enum": [
+                            "APP",
+                            "TOTEM",
+                            "BALCAO",
+                            "PICKUP",
+                            "WEB"
+                        ]
+                    },
+                    "status": {
+                        "type": "string",
+                        "enum": [
+                            "AGUARDANDO_PAGAMENTO",
+                            "PAGO",
+                            "PAGAMENTO_RECUSADO",
+                            "EM_PREPARO",
+                            "PRONTO",
+                            "ENTREGUE",
+                            "CANCELADO"
+                        ]
+                    },
+                    "itens": {
+                        "type": "array",
+                        "items": {
+                            "$ref": "#/components/schemas/ItemPedidoResponse"
+                        }
+                    },
+                    "subtotal": {
+                        "type": "number"
+                    },
+                    "desconto": {
+                        "type": "number",
+                        "description": "Desconto de campanha aplicado pelo servidor",
+                        "example": 3.0
+                    },
+                    "total": {
+                        "type": "number"
+                    },
+                    "campanhaAplicada": {
+                        "type": "string",
+                        "description": "Campanha que gerou o desconto, quando houve"
+                    },
+                    "proximosStatus": {
+                        "type": "array",
+                        "description": "Status para onde este pedido ainda pode ir",
+                        "items": {
+                            "type": "string",
+                            "enum": [
+                                "AGUARDANDO_PAGAMENTO",
+                                "PAGO",
+                                "PAGAMENTO_RECUSADO",
+                                "EM_PREPARO",
+                                "PRONTO",
+                                "ENTREGUE",
+                                "CANCELADO"
+                            ]
+                        }
+                    },
+                    "criadoEm": {
+                        "type": "string",
+                        "format": "date-time"
+                    },
+                    "atualizadoEm": {
+                        "type": "string",
+                        "format": "date-time"
+                    }
+                },
+                "required": [
+                    "atualizadoEm",
+                    "canalPedido",
+                    "criadoEm",
+                    "desconto",
+                    "id",
+                    "itens",
+                    "proximosStatus",
+                    "status",
+                    "subtotal",
+                    "total",
+                    "unidadeId"
+                ]
+            },
+            "SolicitarPagamentoRequest": {
+                "type": "object",
+                "description": "Solicita\u00e7\u00e3o de pagamento",
+                "properties": {
+                    "metodo": {
+                        "type": "string",
+                        "enum": [
+                            "PIX",
+                            "CARTAO_CREDITO",
+                            "CARTAO_DEBITO",
+                            "DINHEIRO"
+                        ],
+                        "example": "PIX"
+                    },
+                    "tokenPagamento": {
+                        "type": "string",
+                        "description": "Token opaco do gateway. A API nunca recebe dado de cart\u00e3o.\n\nNo gateway simulado o token decide o desfecho: `tok_recusa...` recusa, `tok_timeout...` simula o gateway sem responder, e qualquer outro valor (ou nenhum) aprova.",
+                        "example": "tok_ok_123",
+                        "maxLength": 100,
+                        "minLength": 0
+                    },
+                    "chaveIdempotencia": {
+                        "type": "string",
+                        "description": "Chave de idempotencia. Reenviar a mesma chave devolve o resultado que ja existe, em vez de cobrar de novo. Opcional, mas recomendada: e o que protege o cliente de toque duplo ou reenvio por timeout.",
+                        "example": "pedido-9001-tentativa-1",
+                        "maxLength": 100,
+                        "minLength": 0
+                    }
+                },
+                "required": [
+                    "metodo"
+                ]
+            },
+            "PagamentoResponse": {
+                "type": "object",
+                "description": "Pagamento",
+                "properties": {
+                    "id": {
+                        "type": "string",
+                        "format": "uuid"
+                    },
+                    "pedidoId": {
+                        "type": "string",
+                        "format": "uuid"
+                    },
+                    "status": {
+                        "type": "string",
+                        "enum": [
+                            "PENDENTE",
+                            "APROVADO",
+                            "RECUSADO",
+                            "ESTORNADO"
+                        ]
+                    },
+                    "valor": {
+                        "type": "number"
+                    },
+                    "metodo": {
+                        "type": "string",
+                        "enum": [
+                            "PIX",
+                            "CARTAO_CREDITO",
+                            "CARTAO_DEBITO",
+                            "DINHEIRO"
+                        ]
+                    },
+                    "idTransacaoExterna": {
+                        "type": "string",
+                        "description": "Id da transa\u00e7\u00e3o no gateway. So existe depois da resposta."
+                    },
+                    "mensagem": {
+                        "type": "string",
+                        "example": "Pagamento aprovado."
+                    },
+                    "statusPedido": {
+                        "type": "string",
+                        "description": "Situa\u00e7\u00e3o do pedido depois deste pagamento",
+                        "enum": [
+                            "AGUARDANDO_PAGAMENTO",
+                            "PAGO",
+                            "PAGAMENTO_RECUSADO",
+                            "EM_PREPARO",
+                            "PRONTO",
+                            "ENTREGUE",
+                            "CANCELADO"
+                        ]
+                    },
+                    "tentativas": {
+                        "type": "integer",
+                        "format": "int32"
+                    },
+                    "criadoEm": {
+                        "type": "string",
+                        "format": "date-time"
+                    }
+                },
+                "required": [
+                    "criadoEm",
+                    "id",
+                    "metodo",
+                    "pedidoId",
+                    "status",
+                    "statusPedido",
+                    "tentativas",
+                    "valor"
+                ]
+            },
+            "CancelarPedidoRequest": {
+                "type": "object",
+                "description": "Cancelamento",
+                "properties": {
+                    "motivo": {
+                        "type": "string",
+                        "example": "Cliente desistiu",
+                        "maxLength": 255,
+                        "minLength": 0
+                    }
+                }
+            },
+            "CallbackPagamentoRequest": {
+                "type": "object",
+                "description": "Callback do gateway de pagamento",
+                "properties": {
+                    "pagamentoId": {
+                        "type": "string",
+                        "format": "uuid"
+                    },
+                    "resultado": {
+                        "type": "string",
+                        "description": "APROVADO ou RECUSADO",
+                        "enum": [
+                            "PENDENTE",
+                            "APROVADO",
+                            "RECUSADO",
+                            "ESTORNADO"
+                        ],
+                        "example": "APROVADO"
+                    },
+                    "idTransacaoExterna": {
+                        "type": "string",
+                        "maxLength": 100,
+                        "minLength": 0
+                    },
+                    "mensagem": {
+                        "type": "string",
+                        "maxLength": 255,
+                        "minLength": 0
+                    }
+                },
+                "required": [
+                    "pagamentoId",
+                    "resultado"
+                ]
+            },
+            "ResgatarPontosRequest": {
+                "type": "object",
+                "description": "Resgate de pontos",
+                "properties": {
+                    "pontos": {
+                        "type": "integer",
+                        "format": "int32",
+                        "example": 50,
+                        "minimum": 1
+                    },
+                    "descricao": {
+                        "type": "string",
+                        "example": "Troca por cuscuz",
+                        "maxLength": 255,
+                        "minLength": 0
+                    }
+                },
+                "required": [
+                    "pontos"
+                ]
+            },
+            "SaldoFidelidadeResponse": {
+                "type": "object",
+                "description": "Saldo do programa de fidelidade",
+                "properties": {
+                    "saldoPontos": {
+                        "type": "integer",
+                        "format": "int32",
+                        "example": 120
+                    },
+                    "ativa": {
+                        "type": "boolean",
+                        "description": "false enquanto o cliente n\u00e3o der consentimento. Conta inativa n\u00e3o acumula ponto."
+                    }
+                },
+                "required": [
+                    "ativa",
+                    "saldoPontos"
+                ]
+            },
+            "RegistrarConsentimentoRequest": {
+                "type": "object",
+                "description": "Consentimento para tratamento de dados",
+                "properties": {
+                    "finalidade": {
+                        "type": "string",
+                        "description": "FIDELIDADE habilita o acumulo de pontos. MARKETING libera campanha por e-mail. PERFILAMENTO permite segmentar por idade e perfil de consumo.",
+                        "example": "FIDELIDADE",
+                        "minLength": 1,
+                        "pattern": "^(FIDELIDADE|MARKETING|PERFILAMENTO)$"
+                    },
+                    "versaoDocumento": {
+                        "type": "string",
+                        "description": "Vers\u00e3o do texto que a pessoa aceitou",
+                        "example": 1.0,
+                        "minLength": 1
+                    }
+                },
+                "required": [
+                    "finalidade",
+                    "versaoDocumento"
+                ]
+            },
+            "ConsentimentoResponse": {
+                "type": "object",
+                "description": "Consentimento registrado",
+                "properties": {
+                    "id": {
+                        "type": "string",
+                        "format": "uuid"
+                    },
+                    "finalidade": {
+                        "type": "string"
+                    },
+                    "versaoDocumento": {
+                        "type": "string"
+                    },
+                    "aceitoEm": {
+                        "type": "string",
+                        "format": "date-time"
+                    },
+                    "revogadoEm": {
+                        "type": "string",
+                        "format": "date-time",
+                        "description": "Preenchido na revoga\u00e7\u00e3o. Nulo enquanto o consentimento vale."
+                    },
+                    "ativo": {
+                        "type": "boolean"
+                    }
+                },
+                "required": [
+                    "aceitoEm",
+                    "ativo",
+                    "finalidade",
+                    "id",
+                    "versaoDocumento"
+                ]
+            },
+            "RefreshRequest": {
+                "type": "object",
+                "description": "Refresh token para renovar o acesso",
+                "properties": {
+                    "refreshToken": {
+                        "type": "string",
+                        "minLength": 1
+                    }
+                },
+                "required": [
+                    "refreshToken"
+                ]
+            },
+            "LoginResponse": {
+                "type": "object",
+                "description": "Tokens de acesso",
+                "properties": {
+                    "accessToken": {
+                        "type": "string"
+                    },
+                    "refreshToken": {
+                        "type": "string"
+                    },
+                    "tokenType": {
+                        "type": "string",
+                        "example": "Bearer"
+                    },
+                    "expiresIn": {
+                        "type": "integer",
+                        "format": "int64",
+                        "example": 900
+                    },
+                    "usuario": {
+                        "$ref": "#/components/schemas/UsuarioResumoResponse"
+                    }
+                },
+                "required": [
+                    "accessToken",
+                    "expiresIn",
+                    "refreshToken",
+                    "tokenType",
+                    "usuario"
+                ]
+            },
+            "UsuarioResumoResponse": {
+                "type": "object",
+                "description": "Dados basicos do usuario autenticado",
+                "properties": {
+                    "id": {
+                        "type": "string",
+                        "format": "uuid"
+                    },
+                    "nome": {
+                        "type": "string"
+                    },
+                    "email": {
+                        "type": "string"
+                    },
+                    "perfil": {
+                        "type": "string",
+                        "enum": [
+                            "ADMIN",
+                            "GERENTE",
+                            "ATENDENTE",
+                            "COZINHA",
+                            "CLIENTE"
+                        ]
+                    },
+                    "unidadeId": {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Unidade do operador. Nulo para cliente e admin."
+                    }
+                },
+                "required": [
+                    "email",
+                    "id",
+                    "nome",
+                    "perfil"
+                ]
+            },
+            "LoginRequest": {
+                "type": "object",
+                "description": "Credenciais de acesso",
+                "properties": {
+                    "email": {
+                        "type": "string",
+                        "example": "cliente@exemplo.com",
+                        "minLength": 1
+                    },
+                    "senha": {
+                        "type": "string",
+                        "example": "Senha@123",
+                        "minLength": 1
+                    }
+                },
+                "required": [
+                    "email",
+                    "senha"
+                ]
+            },
+            "AtualizarStatusRequest": {
+                "type": "object",
+                "description": "Novo status do pedido",
+                "properties": {
+                    "status": {
+                        "type": "string",
+                        "enum": [
+                            "AGUARDANDO_PAGAMENTO",
+                            "PAGO",
+                            "PAGAMENTO_RECUSADO",
+                            "EM_PREPARO",
+                            "PRONTO",
+                            "ENTREGUE",
+                            "CANCELADO"
+                        ],
+                        "example": "EM_PREPARO"
+                    }
+                },
+                "required": [
+                    "status"
+                ]
+            },
+            "PaginaResponseUnidadeResponse": {
+                "type": "object",
+                "description": "Listagem paginada",
+                "properties": {
+                    "conteudo": {
+                        "type": "array",
+                        "items": {
+                            "$ref": "#/components/schemas/UnidadeResponse"
+                        }
+                    },
+                    "pagina": {
+                        "type": "integer",
+                        "format": "int32",
+                        "example": 1
+                    },
+                    "limite": {
+                        "type": "integer",
+                        "format": "int32",
+                        "example": 10
+                    },
+                    "totalItens": {
+                        "type": "integer",
+                        "format": "int64",
+                        "example": 42
+                    },
+                    "totalPaginas": {
+                        "type": "integer",
+                        "format": "int32",
+                        "example": 5
+                    },
+                    "primeira": {
+                        "type": "boolean"
+                    },
+                    "ultima": {
+                        "type": "boolean"
+                    }
+                },
+                "required": [
+                    "conteudo",
+                    "limite",
+                    "pagina",
+                    "primeira",
+                    "totalItens",
+                    "totalPaginas",
+                    "ultima"
+                ]
+            },
+            "EstoqueResponse": {
+                "type": "object",
+                "description": "Saldo de estoque de um produto na unidade",
+                "properties": {
+                    "produtoId": {
+                        "type": "string",
+                        "format": "uuid"
+                    },
+                    "nome": {
+                        "type": "string"
+                    },
+                    "categoria": {
+                        "type": "string"
+                    },
+                    "saldoAtual": {
+                        "type": "integer",
+                        "format": "int32",
+                        "example": 50
+                    },
+                    "saldoMinimo": {
+                        "type": "integer",
+                        "format": "int32",
+                        "description": "Abaixo disso a loja deveria repor",
+                        "example": 10
+                    },
+                    "abaixoDoMinimo": {
+                        "type": "boolean",
+                        "description": "true quando o saldo esta no minimo ou abaixo dele"
+                    }
+                },
+                "required": [
+                    "abaixoDoMinimo",
+                    "categoria",
+                    "nome",
+                    "produtoId",
+                    "saldoAtual",
+                    "saldoMinimo"
+                ]
+            },
+            "PaginaResponseEstoqueResponse": {
+                "type": "object",
+                "description": "Listagem paginada",
+                "properties": {
+                    "conteudo": {
+                        "type": "array",
+                        "items": {
+                            "$ref": "#/components/schemas/EstoqueResponse"
+                        }
+                    },
+                    "pagina": {
+                        "type": "integer",
+                        "format": "int32",
+                        "example": 1
+                    },
+                    "limite": {
+                        "type": "integer",
+                        "format": "int32",
+                        "example": 10
+                    },
+                    "totalItens": {
+                        "type": "integer",
+                        "format": "int64",
+                        "example": 42
+                    },
+                    "totalPaginas": {
+                        "type": "integer",
+                        "format": "int32",
+                        "example": 5
+                    },
+                    "primeira": {
+                        "type": "boolean"
+                    },
+                    "ultima": {
+                        "type": "boolean"
+                    }
+                },
+                "required": [
+                    "conteudo",
+                    "limite",
+                    "pagina",
+                    "primeira",
+                    "totalItens",
+                    "totalPaginas",
+                    "ultima"
+                ]
+            },
+            "PaginaResponseMovimentacaoEstoqueResponse": {
+                "type": "object",
+                "description": "Listagem paginada",
+                "properties": {
+                    "conteudo": {
+                        "type": "array",
+                        "items": {
+                            "$ref": "#/components/schemas/MovimentacaoEstoqueResponse"
+                        }
+                    },
+                    "pagina": {
+                        "type": "integer",
+                        "format": "int32",
+                        "example": 1
+                    },
+                    "limite": {
+                        "type": "integer",
+                        "format": "int32",
+                        "example": 10
+                    },
+                    "totalItens": {
+                        "type": "integer",
+                        "format": "int64",
+                        "example": 42
+                    },
+                    "totalPaginas": {
+                        "type": "integer",
+                        "format": "int32",
+                        "example": 5
+                    },
+                    "primeira": {
+                        "type": "boolean"
+                    },
+                    "ultima": {
+                        "type": "boolean"
+                    }
+                },
+                "required": [
+                    "conteudo",
+                    "limite",
+                    "pagina",
+                    "primeira",
+                    "totalItens",
+                    "totalPaginas",
+                    "ultima"
+                ]
+            },
+            "PaginaResponseProdutoResponse": {
+                "type": "object",
+                "description": "Listagem paginada",
+                "properties": {
+                    "conteudo": {
+                        "type": "array",
+                        "items": {
+                            "$ref": "#/components/schemas/ProdutoResponse"
+                        }
+                    },
+                    "pagina": {
+                        "type": "integer",
+                        "format": "int32",
+                        "example": 1
+                    },
+                    "limite": {
+                        "type": "integer",
+                        "format": "int32",
+                        "example": 10
+                    },
+                    "totalItens": {
+                        "type": "integer",
+                        "format": "int64",
+                        "example": 42
+                    },
+                    "totalPaginas": {
+                        "type": "integer",
+                        "format": "int32",
+                        "example": 5
+                    },
+                    "primeira": {
+                        "type": "boolean"
+                    },
+                    "ultima": {
+                        "type": "boolean"
+                    }
+                },
+                "required": [
+                    "conteudo",
+                    "limite",
+                    "pagina",
+                    "primeira",
+                    "totalItens",
+                    "totalPaginas",
+                    "ultima"
+                ]
+            },
+            "PaginaResponsePedidoResponse": {
+                "type": "object",
+                "description": "Listagem paginada",
+                "properties": {
+                    "conteudo": {
+                        "type": "array",
+                        "items": {
+                            "$ref": "#/components/schemas/PedidoResponse"
+                        }
+                    },
+                    "pagina": {
+                        "type": "integer",
+                        "format": "int32",
+                        "example": 1
+                    },
+                    "limite": {
+                        "type": "integer",
+                        "format": "int32",
+                        "example": 10
+                    },
+                    "totalItens": {
+                        "type": "integer",
+                        "format": "int64",
+                        "example": 42
+                    },
+                    "totalPaginas": {
+                        "type": "integer",
+                        "format": "int32",
+                        "example": 5
+                    },
+                    "primeira": {
+                        "type": "boolean"
+                    },
+                    "ultima": {
+                        "type": "boolean"
+                    }
+                },
+                "required": [
+                    "conteudo",
+                    "limite",
+                    "pagina",
+                    "primeira",
+                    "totalItens",
+                    "totalPaginas",
+                    "ultima"
+                ]
+            },
+            "MovimentacaoPontosResponse": {
+                "type": "object",
+                "description": "Lan\u00e7amento de pontos",
+                "properties": {
+                    "id": {
+                        "type": "string",
+                        "format": "uuid"
+                    },
+                    "tipo": {
+                        "type": "string",
+                        "enum": [
+                            "ACUMULO",
+                            "RESGATE"
+                        ]
+                    },
+                    "pontos": {
+                        "type": "integer",
+                        "format": "int32"
+                    },
+                    "saldoApos": {
+                        "type": "integer",
+                        "format": "int32",
+                        "description": "Saldo que ficou depois deste lan\u00e7amento"
+                    },
+                    "pedidoId": {
+                        "type": "string",
+                        "format": "uuid"
+                    },
+                    "descricao": {
+                        "type": "string"
+                    },
+                    "criadoEm": {
+                        "type": "string",
+                        "format": "date-time"
+                    }
+                },
+                "required": [
+                    "criadoEm",
+                    "id",
+                    "pontos",
+                    "saldoApos",
+                    "tipo"
+                ]
+            },
+            "PaginaResponseMovimentacaoPontosResponse": {
+                "type": "object",
+                "description": "Listagem paginada",
+                "properties": {
+                    "conteudo": {
+                        "type": "array",
+                        "items": {
+                            "$ref": "#/components/schemas/MovimentacaoPontosResponse"
+                        }
+                    },
+                    "pagina": {
+                        "type": "integer",
+                        "format": "int32",
+                        "example": 1
+                    },
+                    "limite": {
+                        "type": "integer",
+                        "format": "int32",
+                        "example": 10
+                    },
+                    "totalItens": {
+                        "type": "integer",
+                        "format": "int64",
+                        "example": 42
+                    },
+                    "totalPaginas": {
+                        "type": "integer",
+                        "format": "int32",
+                        "example": 5
+                    },
+                    "primeira": {
+                        "type": "boolean"
+                    },
+                    "ultima": {
+                        "type": "boolean"
+                    }
+                },
+                "required": [
+                    "conteudo",
+                    "limite",
+                    "pagina",
+                    "primeira",
+                    "totalItens",
+                    "totalPaginas",
+                    "ultima"
+                ]
+            },
+            "LogAuditoriaResponse": {
+                "type": "object",
+                "description": "Registro de auditoria",
+                "properties": {
+                    "id": {
+                        "type": "string",
+                        "format": "uuid"
+                    },
+                    "usuarioId": {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Quem fez. Nulo quando a a\u00e7\u00e3o partiu do sistema."
+                    },
+                    "acao": {
+                        "type": "string",
+                        "example": "PEDIDO_CANCELADO"
+                    },
+                    "entidade": {
+                        "type": "string",
+                        "example": "PEDIDO"
+                    },
+                    "entidadeId": {
+                        "type": "string",
+                        "format": "uuid"
+                    },
+                    "dadosAnteriores": {
+                        "type": "string",
+                        "description": "Estado anterior em JSON. Nulo em cria\u00e7\u00e3o."
+                    },
+                    "dadosNovos": {
+                        "type": "string",
+                        "description": "Estado novo em JSON. Nulo em exclus\u00e3o."
+                    },
+                    "ip": {
+                        "type": "string"
+                    },
+                    "criadoEm": {
+                        "type": "string",
+                        "format": "date-time"
+                    }
+                },
+                "required": [
+                    "acao",
+                    "criadoEm",
+                    "entidade",
+                    "id"
+                ]
+            },
+            "PaginaResponseLogAuditoriaResponse": {
+                "type": "object",
+                "description": "Listagem paginada",
+                "properties": {
+                    "conteudo": {
+                        "type": "array",
+                        "items": {
+                            "$ref": "#/components/schemas/LogAuditoriaResponse"
+                        }
+                    },
+                    "pagina": {
+                        "type": "integer",
+                        "format": "int32",
+                        "example": 1
+                    },
+                    "limite": {
+                        "type": "integer",
+                        "format": "int32",
+                        "example": 10
+                    },
+                    "totalItens": {
+                        "type": "integer",
+                        "format": "int64",
+                        "example": 42
+                    },
+                    "totalPaginas": {
+                        "type": "integer",
+                        "format": "int32",
+                        "example": 5
+                    },
+                    "primeira": {
+                        "type": "boolean"
+                    },
+                    "ultima": {
+                        "type": "boolean"
+                    }
+                },
+                "required": [
+                    "conteudo",
+                    "limite",
+                    "pagina",
+                    "primeira",
+                    "totalItens",
+                    "totalPaginas",
+                    "ultima"
+                ]
+            }
+        },
+        "securitySchemes": {
+            "Bearer Auth": {
+                "type": "http",
+                "description": "Cole aqui o accessToken devolvido por POST /auth/login",
+                "name": "Bearer Auth",
+                "scheme": "bearer",
+                "bearerFormat": "JWT"
+            }
+        }
+    }
+}

@@ -247,6 +247,7 @@ A coleção completa está versionada em [`postman/`](postman/):
 |---|---|
 | [`raizes-do-nordeste.postman_collection.json`](postman/raizes-do-nordeste.postman_collection.json) | 93 requisições em 12 pastas |
 | [`raizes-do-nordeste.postman_environment.json`](postman/raizes-do-nordeste.postman_environment.json) | Ambiente local (`baseUrl` e afins) |
+| [`openapi.json`](postman/openapi.json) | Contrato OpenAPI 3.1 — importável em qualquer cliente |
 
 ### Como usar
 
@@ -277,6 +278,31 @@ código de erro do envelope.
 > **Rode contra um banco recém-criado.** As pastas 2, 5 e 6 alteram cadastro, preço e
 > estoque de propósito. Numa segunda rodada sobre o mesmo banco, 6 asserções falham por
 > estado acumulado — a própria descrição da coleção lista quais e por quê.
+
+### Não usa Postman?
+
+O arquivo está no formato **Postman Collection v2.1**, que é o que a maioria dos clientes
+importa. O que muda de um para outro não são as requisições, e sim os *scripts* — são eles
+que encadeiam os tokens e os ids sozinhos.
+
+| Cliente | Situação |
+|---|---|
+| **Postman** | Testado aqui: 93 requisições, 202 asserções, 0 falhas |
+| **Newman** (linha de comando) | Testado aqui, mesmo resultado. Não precisa de interface gráfica |
+| **Insomnia 9.3+** | Importa a coleção, e a documentação do Kong diz que os *after-response scripts* vindos do Postman funcionam. **Não verifiquei pessoalmente** |
+| **Bruno, Hoppscotch, Thunder Client e outros** | Importam as requisições e as pastas. Os scripts podem não rodar |
+
+Se os scripts não rodarem no seu cliente, nada quebra de forma silenciosa: o que se perde é
+o **preenchimento automático**. Rode o login da pasta `0. Setup`, copie o `accessToken` da
+resposta e cole na variável `tokenCliente` (e equivalentes). Os ids do seed já vêm
+preenchidos e não dependem de script.
+
+E existem dois caminhos que não dependem de cliente nenhum:
+
+- **[`postman/openapi.json`](postman/openapi.json)** — o contrato em OpenAPI 3.1, com os 43
+  schemas. Qualquer ferramenta de API importa, inclusive as que não leem formato Postman.
+- **[VALIDACAO.md](VALIDACAO.md)** — o mesmo roteiro em `curl` puro, que roda em qualquer
+  terminal sem instalar nada.
 
 ---
 
