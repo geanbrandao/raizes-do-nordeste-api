@@ -45,6 +45,32 @@ gerente autenticado, então não há enumeração a evitar, e esconder o motivo 
 atrapalharia quem está cadastrando a equipe. A regra é: resposta genérica em endpoint
 público, erro explícito em endpoint autenticado.
 
+### A confirmação de e-mail tambem não podia virar a mesma brecha
+
+`POST /usuarios/verificacao` responde 204 quando a conta ja esta verificada, porque
+confirmar duas vezes o mesmo codigo não e erro: o resultado desejado ja vale.
+
+Só que a primeira versão devolvia esse 204 para **qualquer** codigo, desde que a conta
+estivesse verificada. Isso reabria por outra porta exatamente o que o 202 generico do
+cadastro fecha: bastava mandar um codigo qualquer e ler o status para saber se o e-mail
+existe e esta ativo — 204 para conta verificada, 400 para todo o resto.
+
+O conserto preserva as duas propriedades ao mesmo tempo. O 204 idempotente agora exige que
+o codigo apresentado seja o mesmo do ultimo codigo emitido para aquele usuario:
+
+- codigo certo em conta ja verificada → 204, igual a antes (quem reenvia e o titular, que
+  conhece o codigo);
+- codigo errado em conta ja verificada → 400 `CODIGO_VERIFICACAO_INVALIDO`;
+- codigo errado em conta não verificada → 400, mesma resposta;
+- e-mail que não existe → 400, mesma resposta.
+
+Quem não sabe o codigo não distingue mais um caso do outro. Dois testes guardam isso:
+`confirmar duas vezes o mesmo codigo certo continua dando 204` e `conta ja verificada com
+codigo errado responde igual a conta nao verificada`.
+
+Vale registrar como foi achado: não foi por revisão de codigo, foi executando o roteiro de
+validação inteiro num banco limpo. O cenario 13 esperava 400 e recebeu 204.
+
 ---
 
 ## 2. Login não revela se um e-mail existe — nem pela mensagem, nem pelo relógio

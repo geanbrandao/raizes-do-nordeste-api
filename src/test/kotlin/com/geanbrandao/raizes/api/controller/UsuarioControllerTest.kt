@@ -118,6 +118,35 @@ class UsuarioControllerTest {
     }
 
     @Test
+    fun `confirmar duas vezes o mesmo codigo certo continua dando 204`() {
+        cadastrar("duasvezes@exemplo.com")
+        val requisicao = post("/usuarios/verificacao").contentType(MediaType.APPLICATION_JSON)
+            .content("""{"email":"duasvezes@exemplo.com","codigo":"258369"}""")
+
+        mockMvc.perform(requisicao).andExpect(status().isNoContent)
+        mockMvc.perform(requisicao).andExpect(status().isNoContent)
+    }
+
+    @Test
+    fun `conta ja verificada com codigo errado responde igual a conta nao verificada`() {
+        cadastrar("javerificada@exemplo.com")
+        mockMvc.perform(
+            post("/usuarios/verificacao").contentType(MediaType.APPLICATION_JSON)
+                .content("""{"email":"javerificada@exemplo.com","codigo":"258369"}"""),
+        ).andExpect(status().isNoContent)
+
+        // Se aqui voltasse 204, chutar um codigo qualquer revelaria quais e-mails
+        // existem e estão verificados — enumeração pela porta da verificação.
+        mockMvc.perform(
+            post("/usuarios/verificacao").contentType(MediaType.APPLICATION_JSON)
+                .content("""{"email":"javerificada@exemplo.com","codigo":"000000"}"""),
+        )
+            .andExpect(status().isBadRequest)
+            .andExpect(jsonPath("$.error").value(ErrorCodes.CODIGO_VERIFICACAO_INVALIDO))
+            .andExpect(jsonPath("$.message").value("Codigo de verificação invalido ou expirado."))
+    }
+
+    @Test
     fun `email inexistente na verificacao devolve o mesmo erro do codigo errado`() {
         mockMvc.perform(
             post("/usuarios/verificacao").contentType(MediaType.APPLICATION_JSON)

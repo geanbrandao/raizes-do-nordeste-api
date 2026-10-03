@@ -16,4 +16,14 @@ interface TokenVerificacaoEmailRepository : JpaRepository<TokenVerificacaoEmailE
     fun findFirstByUsuarioIdAndUsadoFalseOrderByCriadoEmDesc(
         usuarioId: UUID,
     ): TokenVerificacaoEmailEntity?
+
+    /**
+     * Ultimo codigo emitido para o usuario, usado ou não.
+     *
+     * Serve para quem confirma duas vezes o mesmo codigo: nesse caso o token ja
+     * esta marcado como usado, e a busca de cima não acha nada.
+     */
+    fun findFirstByUsuarioIdOrderByCriadoEmDesc(
+        usuarioId: UUID,
+    ): TokenVerificacaoEmailEntity?
 }

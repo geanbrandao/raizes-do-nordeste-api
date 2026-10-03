@@ -83,8 +83,14 @@ class VerificacaoEmailService(
             ?: throw codigoInvalido()
 
         if (usuario.emailVerificado) {
-            // Confirmar duas vezes não e erro: o resultado desejado ja vale.
-            return
+            // Mandar de novo o mesmo codigo certo não e erro: o resultado desejado ja vale.
+            // Mas codigo errado tem que responder igual ao de uma conta não verificada. Se
+            // a conta ja verificada devolvesse 204 para qualquer codigo, bastava chutar um
+            // codigo qualquer para saber quais e-mails existem e estão ativos — a mesma
+            // enumeração que o 202 generico do cadastro evita.
+            val ultimo = tokenRepository.findFirstByUsuarioIdOrderByCriadoEmDesc(usuario.id)
+            if (ultimo != null && ultimo.codigo == codigo.trim()) return
+            throw codigoInvalido()
         }
 
         val token = tokenRepository.findFirstByUsuarioIdAndUsadoFalseOrderByCriadoEmDesc(usuario.id)
