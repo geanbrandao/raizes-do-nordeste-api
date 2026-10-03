@@ -11,7 +11,7 @@ Vira a base da seção de execução do README na entrega final.
 Pré-requisitos já conferidos nesta máquina: Docker Desktop instalado, Java 17,
 `jq` disponível, portas 8080 e 5432 livres.
 
-**Estado atual:** 7 controllers, 28 operações HTTP, 149 testes automatizados.
+**Estado atual:** 8 controllers, 31 operações HTTP, 165 testes automatizados.
 
 ---
 
@@ -21,7 +21,7 @@ Pré-requisitos já conferidos nesta máquina: Docker Desktop instalado, Java 17
 cd ~/Documents/faculdade/TCC/raizes-do-nordeste-api && ./gradlew test
 ```
 
-Esperado: `BUILD SUCCESSFUL`, 149 testes, 0 falhas.
+Esperado: `BUILD SUCCESSFUL`, 165 testes, 0 falhas.
 
 Os testes usam H2 em modo PostgreSQL com as migrations reais aplicadas pelo Flyway.
 Provam a coerência entre migrations, entidades e seed — mas **não** substituem uma
@@ -54,7 +54,7 @@ Deixe esse terminal aberto mostrando o log e use outro para os comandos seguinte
 | Sinal | Significa |
 |---|---|
 | `database system is ready to accept connections` | Postgres no ar |
-| `Successfully applied 17 migrations` | Flyway criou o schema e aplicou o seed |
+| `Successfully applied 18 migrations` | Flyway criou o schema e aplicou o seed |
 | `Codigo de verificação FIXO ligado (258369)` | Perfil dev ativo, código previsível |
 | `Tomcat started on port 8080` | API no ar |
 | `Started RaizesApiApplication` | Subiu inteira |
@@ -86,7 +86,7 @@ docker compose exec postgres psql -U raizes_user -d raizes \
   -c "SELECT version, description, success FROM flyway_schema_history ORDER BY installed_rank;"
 ```
 
-Esperado: 17 linhas, todas com `success = t`.
+Esperado: 18 linhas, todas com `success = t`.
 
 ```bash
 docker compose exec postgres psql -U raizes_user -d raizes \
@@ -115,7 +115,7 @@ Conferência de que a documentação reflete as rotas reais:
 curl -s localhost:8080/v3/api-docs | jq -r '.paths | keys[]'
 ```
 
-Esperado (21 rotas):
+Esperado (24 rotas):
 
 ```
 /auth/login          /auth/logout         /auth/refresh
@@ -128,6 +128,8 @@ Esperado (21 rotas):
 /unidades/{unidadeId}/estoque/{produtoId}/movimentacoes
 /pedidos             /pedidos/{pedidoId}
 /pedidos/{pedidoId}/status                /pedidos/{pedidoId}/cancelamento
+/pedidos/{pedidoId}/pagamentos            /pagamentos/{pagamentoId}
+/pagamentos/callback
 ```
 
 ---
@@ -557,6 +559,90 @@ Compare com o mesmo pedido pelo `TOTEM`, que não tem desconto.
 
 ---
 
+### 4.8 Pagamento mock
+
+> Precisa das variáveis da seção **4.0**.
+
+O gateway é simulado, mas o fluxo é real. **O desfecho não é sorteado** — quem decide é
+o `tokenPagamento`, para você conseguir reproduzir os três casos quando quiser:
+
+| Token começando com | Desfecho |
+|---|---|
+| `tok_recusa` | RECUSADO → pedido vai para `PAGAMENTO_RECUSADO` |
+| `tok_timeout` | gateway não responde → pagamento `PENDENTE`, pedido não se mexe |
+| qualquer outro, ou nenhum | APROVADO → pedido vai para `PAGO` |
+
+A API **nunca recebe dado de cartão**: o `tokenPagamento` é opaco e, num cenário real,
+viria do SDK do próprio gateway.
+
+```bash
+novoPedido() { curl -s -X POST localhost:8080/pedidos -H "Authorization: Bearer $TOKEN" \
+  -H 'Content-Type: application/json' \
+  -d "{\"unidadeId\":\"$RECIFE\",\"canalPedido\":\"TOTEM\",\"itens\":[{\"produtoId\":\"$TAPIOCA\",\"quantidade\":2}]}" | jq -r .id; }
+pagar() { curl -s -X POST localhost:8080/pedidos/$1/pagamentos -H "Authorization: Bearer $TOKEN" \
+  -H 'Content-Type: application/json' -d "{\"metodo\":\"PIX\",\"tokenPagamento\":\"$2\"}"; }
+```
+
+**Aprovado (T09)**
+
+```bash
+P1=$(novoPedido); pagar $P1 tok_ok_123 | jq '{status,statusPedido,valor,idTransacaoExterna,mensagem}'
+```
+
+Esperado: `status: "APROVADO"`, `statusPedido: "PAGO"`.
+
+**Recusado (T10)**
+
+```bash
+P2=$(novoPedido); pagar $P2 tok_recusa_01 | jq '{status,statusPedido,mensagem}'
+```
+
+Esperado: `status: "RECUSADO"`, `statusPedido: "PAGAMENTO_RECUSADO"`. E dá para tentar
+de novo:
+
+```bash
+pagar $P2 tok_ok_999 | jq '{status,statusPedido,tentativas}'
+```
+
+Esperado: aprovado, `tentativas: 2`.
+
+**Gateway sem resposta, resolvido pelo callback**
+
+```bash
+P3=$(novoPedido)
+PAG=$(pagar $P3 tok_timeout_01)
+echo "$PAG" | jq '{status,statusPedido,mensagem}'
+PAG_ID=$(echo "$PAG" | jq -r .id)
+```
+
+Esperado: `status: "PENDENTE"`, pedido ainda em `AGUARDANDO_PAGAMENTO`. Repare que
+**não** é recusa: o gateway pode ter cobrado mesmo sem responder, e dar como recusado
+arriscaria cobrar o cliente duas vezes.
+
+Agora o gateway avisa o resultado:
+
+```bash
+curl -s -X POST localhost:8080/pagamentos/callback \
+  -H 'X-Gateway-Assinatura: segredo-do-gateway-em-dev' -H 'Content-Type: application/json' \
+  -d "{\"pagamentoId\":\"$PAG_ID\",\"resultado\":\"APROVADO\",\"idTransacaoExterna\":\"ext_777\"}" \
+  | jq '{status,statusPedido}'
+```
+
+Esperado: `APROVADO` e pedido em `PAGO`. Reenviar o mesmo callback é ignorado — gateway
+reenvia webhook quando não recebe confirmação.
+
+**Idempotência: a mesma chave não cobra duas vezes**
+
+```bash
+P4=$(novoPedido)
+corpo='{"metodo":"PIX","tokenPagamento":"tok_ok","chaveIdempotencia":"minha-chave-1"}'
+id1=$(curl -s -X POST localhost:8080/pedidos/$P4/pagamentos -H "Authorization: Bearer $TOKEN" -H 'Content-Type: application/json' -d "$corpo" | jq -r .id)
+id2=$(curl -s -X POST localhost:8080/pedidos/$P4/pagamentos -H "Authorization: Bearer $TOKEN" -H 'Content-Type: application/json' -d "$corpo" | jq -r .id)
+[ "$id1" = "$id2" ] && echo "ok: mesmo pagamento devolvido ($id1)" || echo "FALHOU: cobrou duas vezes"
+```
+
+---
+
 ## 5. Erros
 
 > Precisa das variáveis da seção **4.0**.
@@ -587,6 +673,9 @@ Todos devolvem o mesmo formato: `error`, `message`, `details[]`, `timestamp`, `p
 | 19 | Item fora do cardápio da unidade | 422 `PRODUTO_FORA_DO_CARDAPIO` |
 | 20 | Transição de status inválida | 409 `TRANSICAO_DE_STATUS_INVALIDA` |
 | 21 | Pedido de outra pessoa | 404 `PEDIDO_NAO_ENCONTRADO` |
+| 22 | Pagar pedido já pago | 409 `PEDIDO_JA_PAGO` |
+| 23 | Callback sem assinatura | 401 `NAO_AUTENTICADO` |
+| 24 | Método de pagamento inválido | 400 `REQUISICAO_INVALIDA` |
 
 ```bash
 p() { printf "\n--- %s\n" "$1"; }
@@ -635,6 +724,15 @@ p "20. transicao invalida";  curl -s -X PATCH localhost:8080/pedidos/$PEDIDO_ID/
   -H "Authorization: Bearer $GERENTE" -H 'Content-Type: application/json' \
   -d '{"status":"AGUARDANDO_PAGAMENTO"}' | jq -c '{error,details}'
 p "21. pedido de outro";     curl -s localhost:8080/pedidos/$PEDIDO_ID -H "Authorization: Bearer $(login gerente.caruaru@raizes.com.br)" | jq -c '{error}'
+p "22. pedido ja pago";      PJ=$(novoPedido); pagar $PJ tok_ok > /dev/null; \
+  curl -s -X POST localhost:8080/pedidos/$PJ/pagamentos -H "Authorization: Bearer $TOKEN" \
+  -H 'Content-Type: application/json' -d '{"metodo":"PIX"}' | jq -c '{error,message}'
+p "23. callback sem assinatura"; curl -s -X POST localhost:8080/pagamentos/callback \
+  -H 'Content-Type: application/json' \
+  -d '{"pagamentoId":"00000000-0000-0000-0000-000000000001","resultado":"APROVADO"}' | jq -c '{error}'
+p "24. metodo invalido";     PM=$(novoPedido); curl -s -X POST localhost:8080/pedidos/$PM/pagamentos \
+  -H "Authorization: Bearer $TOKEN" -H 'Content-Type: application/json' \
+  -d '{"metodo":"BITCOIN"}' | jq -c '{error,details}'
 echo
 ```
 
@@ -676,6 +774,7 @@ cd ~/Documents/faculdade/TCC/raizes-do-nordeste-api && docker compose down -v
 | Código no log | sim (é público e documentado) | nunca — é credencial |
 | Swagger / OpenAPI | no ar | desligado |
 | SQL no log | sim | não (vaza dado pessoal nos parâmetros) |
+| Segredo do webhook de pagamento | conhecido: `segredo-do-gateway-em-dev` | **sem default** — variável obrigatória |
 | Segredos | têm default para facilitar | **sem default** — falta de variável derruba no startup |
 | Actuator | `health`, `info`, com detalhes | só `health`, sem detalhes |
 
