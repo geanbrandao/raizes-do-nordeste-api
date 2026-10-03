@@ -11,7 +11,7 @@ Vira a base da seção de execução do README na entrega final.
 Pré-requisitos já conferidos nesta máquina: Docker Desktop instalado, Java 17,
 `jq` disponível, portas 8080 e 5432 livres.
 
-**Estado atual:** 8 controllers, 31 operações HTTP, 165 testes automatizados.
+**Estado atual:** 11 controllers, 38 operações HTTP, 193 testes automatizados.
 
 ---
 
@@ -21,7 +21,7 @@ Pré-requisitos já conferidos nesta máquina: Docker Desktop instalado, Java 17
 cd ~/Documents/faculdade/TCC/raizes-do-nordeste-api && ./gradlew test
 ```
 
-Esperado: `BUILD SUCCESSFUL`, 165 testes, 0 falhas.
+Esperado: `BUILD SUCCESSFUL`, 193 testes, 0 falhas.
 
 Os testes usam H2 em modo PostgreSQL com as migrations reais aplicadas pelo Flyway.
 Provam a coerência entre migrations, entidades e seed — mas **não** substituem uma
@@ -115,7 +115,7 @@ Conferência de que a documentação reflete as rotas reais:
 curl -s localhost:8080/v3/api-docs | jq -r '.paths | keys[]'
 ```
 
-Esperado (24 rotas):
+Esperado (30 rotas):
 
 ```
 /auth/login          /auth/logout         /auth/refresh
@@ -130,6 +130,9 @@ Esperado (24 rotas):
 /pedidos/{pedidoId}/status                /pedidos/{pedidoId}/cancelamento
 /pedidos/{pedidoId}/pagamentos            /pagamentos/{pagamentoId}
 /pagamentos/callback
+/fidelidade/saldo    /fidelidade/extrato       /fidelidade/resgates
+/consentimentos      /consentimentos/{consentimentoId}
+/auditoria
 ```
 
 ---
@@ -643,6 +646,109 @@ id2=$(curl -s -X POST localhost:8080/pedidos/$P4/pagamentos -H "Authorization: B
 
 ---
 
+### 4.9 Fidelidade e LGPD
+
+> Precisa das variáveis da seção **4.0**.
+
+O ponto desta seção não é o saldo, é a **base legal**: pontuar depende de saber quem é o
+cliente e do que ele consome, e isso é tratamento de dado pessoal. Sem consentimento
+ativo, o pedido pago passa sem gerar ponto.
+
+**Consentimentos do titular**
+
+```bash
+curl -s localhost:8080/consentimentos -H "Authorization: Bearer $TOKEN" | jq
+```
+
+O cliente do seed já vem com `FIDELIDADE` ativo.
+
+**Pedido pago credita pontos**
+
+```bash
+echo "saldo antes: $(curl -s localhost:8080/fidelidade/saldo -H "Authorization: Bearer $TOKEN" | jq .saldoPontos)"
+PF=$(novoPedido); pagar $PF tok_ok > /dev/null
+echo "saldo depois: $(curl -s localhost:8080/fidelidade/saldo -H "Authorization: Bearer $TOKEN" | jq .saldoPontos)"
+curl -s localhost:8080/fidelidade/extrato -H "Authorization: Bearer $TOKEN" \
+  | jq '[.conteudo[] | {tipo,pontos,saldoApos,descricao}]'
+```
+
+Esperado: +25 pontos (total 25.80, 1 ponto por real, truncado para baixo).
+
+**Sem consentimento não pontua** — a prova da regra
+
+```bash
+CID=$(curl -s localhost:8080/consentimentos -H "Authorization: Bearer $TOKEN" \
+  | jq -r '.[] | select(.finalidade=="FIDELIDADE") | .id')
+curl -s -X DELETE localhost:8080/consentimentos/$CID -H "Authorization: Bearer $TOKEN" \
+  | jq '{finalidade,ativo,revogadoEm}'
+
+antes=$(curl -s localhost:8080/fidelidade/saldo -H "Authorization: Bearer $TOKEN" | jq .saldoPontos)
+PS=$(novoPedido); pagar $PS tok_ok > /dev/null
+depois=$(curl -s localhost:8080/fidelidade/saldo -H "Authorization: Bearer $TOKEN" | jq .saldoPontos)
+echo "pedido pago com sucesso, saldo $antes -> $depois (esperado: igual)"
+```
+
+O pagamento funciona normalmente; só a pontuação não acontece. E repare que a revogação
+**não apaga a linha** — ela ganha `revogadoEm`, porque o histórico é a prova de que o
+tratamento foi legítimo enquanto durou.
+
+Para voltar a pontuar:
+
+```bash
+curl -s -X POST localhost:8080/consentimentos -H "Authorization: Bearer $TOKEN" \
+  -H 'Content-Type: application/json' \
+  -d '{"finalidade":"FIDELIDADE","versaoDocumento":"1.0"}' | jq '{finalidade,ativo}'
+```
+
+**Resgate**
+
+```bash
+curl -s -X POST localhost:8080/fidelidade/resgates -H "Authorization: Bearer $TOKEN" \
+  -H 'Content-Type: application/json' -d '{"pontos":10,"descricao":"Troca por cuscuz"}' | jq
+```
+
+---
+
+### 4.10 Auditoria
+
+> Precisa das variáveis da seção **4.0**. Só `ADMIN` lê a trilha.
+
+```bash
+curl -s "localhost:8080/auditoria?limit=20" -H "Authorization: Bearer $ADMIN" \
+  | jq '[.conteudo[] | {acao,entidade,usuarioId,ip,criadoEm}]'
+```
+
+**Filtrar por tipo de registro**
+
+```bash
+for e in PEDIDO ESTOQUE PAGAMENTO FIDELIDADE CONSENTIMENTO; do
+  n=$(curl -s "localhost:8080/auditoria?entidade=$e&limit=100" -H "Authorization: Bearer $ADMIN" | jq .totalItens)
+  echo "$e: $n registro(s)"
+done
+```
+
+**O antes e o depois de uma mudança de status**
+
+```bash
+curl -s "localhost:8080/auditoria?entidade=PEDIDO&limit=5" -H "Authorization: Bearer $ADMIN" \
+  | jq '[.conteudo[] | select(.acao=="STATUS_ALTERADO") | {acao,dadosAnteriores,dadosNovos}]'
+```
+
+**A trilha não tem rota de escrita nem de exclusão**
+
+```bash
+curl -s -o /dev/null -w "POST /auditoria -> %{http_code} (esperado 405)
+" \
+  -X POST localhost:8080/auditoria -H "Authorization: Bearer $ADMIN" \
+  -H 'Content-Type: application/json' -d '{}'
+```
+
+Sem endpoint que altere a trilha, não há como adulterar a prova pela API. O registro
+também roda na **mesma transação** da ação: se gravar a trilha falhar, a ação volta
+atrás — trilha que falha em silêncio não serve como prova.
+
+---
+
 ## 5. Erros
 
 > Precisa das variáveis da seção **4.0**.
@@ -676,6 +782,10 @@ Todos devolvem o mesmo formato: `error`, `message`, `details[]`, `timestamp`, `p
 | 22 | Pagar pedido já pago | 409 `PEDIDO_JA_PAGO` |
 | 23 | Callback sem assinatura | 401 `NAO_AUTENTICADO` |
 | 24 | Método de pagamento inválido | 400 `REQUISICAO_INVALIDA` |
+| 25 | Resgate maior que o saldo | 409 `PONTOS_INSUFICIENTES` |
+| 26 | Gerente lendo a auditoria | 403 `SEM_PERMISSAO` |
+| 27 | Finalidade de consentimento inválida | 422 `VALIDACAO` |
+| 28 | Método HTTP não aceito na rota | 405 `METODO_NAO_PERMITIDO` |
 
 ```bash
 p() { printf "\n--- %s\n" "$1"; }
@@ -733,6 +843,14 @@ p "23. callback sem assinatura"; curl -s -X POST localhost:8080/pagamentos/callb
 p "24. metodo invalido";     PM=$(novoPedido); curl -s -X POST localhost:8080/pedidos/$PM/pagamentos \
   -H "Authorization: Bearer $TOKEN" -H 'Content-Type: application/json' \
   -d '{"metodo":"BITCOIN"}' | jq -c '{error,details}'
+p "25. resgate sem saldo";   curl -s -X POST localhost:8080/fidelidade/resgates -H "Authorization: Bearer $TOKEN" \
+  -H 'Content-Type: application/json' -d '{"pontos":99999}' | jq -c '{error,details}'
+p "26. gerente na auditoria"; curl -s localhost:8080/auditoria -H "Authorization: Bearer $GERENTE" | jq -c '{error}'
+p "27. finalidade invalida"; curl -s -X POST localhost:8080/consentimentos -H "Authorization: Bearer $TOKEN" \
+  -H 'Content-Type: application/json' \
+  -d '{"finalidade":"VENDER_PARA_TERCEIROS","versaoDocumento":"1.0"}' | jq -c '{error,details}'
+p "28. metodo nao aceito";   curl -s -X POST localhost:8080/auditoria -H "Authorization: Bearer $ADMIN" \
+  -H 'Content-Type: application/json' -d '{}' | jq -c '{error,details}'
 echo
 ```
 
