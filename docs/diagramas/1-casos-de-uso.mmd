@@ -1,0 +1,67 @@
+flowchart LR
+  classDef ator fill:#ffffff,stroke:#222,stroke-width:2px,color:#000
+  classDef uc fill:#eaf1fb,stroke:#3b6fb5,color:#000
+  classDef ext fill:#f2f2f2,stroke:#888,stroke-dasharray:4 3,color:#000
+  classDef grupo fill:#fbfbfd,stroke:#c9c9d4,color:#333
+
+  USU(["Usuario<br/>autenticado"]):::ator
+  CLI(["Cliente<br/>App · Web · Totem"]):::ator
+  ATD(["Atendente<br/>Balcao"]):::ator
+  COZ(["Cozinha"]):::ator
+  GER(["Gerente"]):::ator
+  ADM(["Administrador"]):::ator
+  GTW(["Gateway de<br/>Pagamento"]):::ext
+
+  CLI -. generaliza .-> USU
+  ATD -. generaliza .-> USU
+  COZ -. generaliza .-> USU
+  GER -. generaliza .-> USU
+  ADM -. generaliza .-> USU
+
+  subgraph COMUM[" "]
+    U01(["Autenticar"]):::uc
+    U06(["Acompanhar pedido"]):::uc
+  end
+
+  subgraph VENDA["Venda"]
+    U03(["Consultar cardapio<br/>da unidade"]):::uc
+    U04(["Realizar pedido"]):::uc
+    U05(["Solicitar pagamento"]):::uc
+    U07(["Cancelar pedido"]):::uc
+  end
+
+  subgraph CONTA["Conta do cliente"]
+    U02(["Cadastrar-se e<br/>confirmar e-mail"]):::uc
+    U13(["Saldo e resgate<br/>de pontos"]):::uc
+    U14(["Consentimento LGPD"]):::uc
+  end
+
+  subgraph OPERACAO["Operacao da loja"]
+    U08(["Atualizar status<br/>do pedido"]):::uc
+    U09(["Gerir cardapio<br/>da unidade"]):::uc
+    U10(["Movimentar estoque"]):::uc
+  end
+
+  subgraph ADMIN["Administracao da rede"]
+    U11(["Gerir produtos<br/>e unidades"]):::uc
+    U12(["Gerir campanhas"]):::uc
+    U15(["Consultar trilha<br/>de auditoria"]):::uc
+  end
+
+  subgraph INTEG["Integracao"]
+    U16(["Confirmar pagamento<br/>por callback"]):::uc
+  end
+
+  USU --> U01
+  USU --> U06
+  CLI --> CONTA
+  CLI --> VENDA
+  ATD --> VENDA
+  ATD --> U08
+  COZ --> U08
+  GER --> OPERACAO
+  ADM --> ADMIN
+  GTW --> U16
+  U05 -. invoca .-> GTW
+
+  class COMUM,VENDA,CONTA,OPERACAO,ADMIN,INTEG grupo

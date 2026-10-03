@@ -1,0 +1,85 @@
+sequenceDiagram
+  autonumber
+  actor C as Cliente
+  participant API as PedidoController
+  participant PS as PedidoService
+  participant CS as CardapioService
+  participant ES as EstoqueService
+  participant CP as CampanhaService
+  participant AU as AuditoriaService
+  participant PG as PagamentoService
+  participant GW as GatewayPagamento<br/>(mock)
+  participant FD as FidelidadeService
+  participant DB as PostgreSQL
+
+  rect rgb(238,244,255)
+  note over C,DB: 1. Realizar pedido — uma unica transacao
+  C->>API: POST /pedidos (unidade, canal, itens)
+  API->>PS: criar(request, solicitante)
+  PS->>CS: itens estao no cardapio desta unidade?
+  CS-->>PS: preco vigente de cada item
+  note right of PS: preco vem do cardapio,<br/>nunca do request
+  PS->>ES: debitar(itens)
+  alt saldo insuficiente
+    ES-->>PS: ConflitoException (lista de faltantes)
+    PS-->>C: 409 ESTOQUE_INSUFICIENTE — nada e criado
+  else saldo disponivel
+    ES->>DB: UPDATE estoque + INSERT movimentacao
+    PS->>CP: ha campanha para canal, unidade e idade?
+    CP-->>PS: desconto aplicavel
+    PS->>DB: INSERT pedido + itens (status AGUARDANDO_PAGAMENTO)
+    PS->>AU: registrar(PEDIDO_CRIADO)
+    AU->>DB: INSERT log_auditoria
+    note right of AU: mesma transacao:<br/>falhou a trilha, volta tudo
+    PS-->>C: 201 Created (total calculado no servidor)
+  end
+  end
+
+  rect rgb(240,248,240)
+  note over C,DB: 2. Solicitar pagamento
+  C->>API: POST /pedidos/{id}/pagamentos
+  API->>PG: solicitar(pedidoId, metodo, token)
+  PG->>DB: SELECT por chave de idempotencia
+  alt ja existe pagamento para esta chave
+    PG-->>C: 201 com o mesmo pagamento — nao cobra duas vezes
+  else primeira tentativa
+    PG->>GW: processar(valor, token)
+    alt token tok_recusa
+      GW-->>PG: RECUSADO
+      PG->>DB: pedido = PAGAMENTO_RECUSADO
+      PG-->>C: 201 RECUSADO (da para tentar outro meio)
+    else token tok_timeout
+      GW-->>PG: SEM_RESPOSTA
+      PG->>DB: pagamento = PENDENTE
+      note right of PG: pedido NAO avanca:<br/>sem confirmacao, sem entrega
+      PG-->>C: 201 PENDENTE
+    else aprovado
+      GW-->>PG: APROVADO
+      PG->>DB: pedido = PAGO
+      PG->>FD: creditar pontos
+      FD->>FD: consentimento FIDELIDADE ativo?
+      alt sem consentimento
+        note right of FD: nao pontua e nao falha:<br/>pagamento aprovado nao<br/>pode cair por causa disto
+      else com consentimento
+        FD->>DB: INSERT movimentacao_pontos
+      end
+      PG->>AU: registrar(PAGAMENTO_SOLICITADO)
+      PG-->>C: 201 APROVADO
+    end
+  end
+  end
+
+  rect rgb(255,248,240)
+  note over C,DB: 3. Atualizar status
+  participant GE as Gerente
+  GE->>API: PATCH /pedidos/{id}/status
+  API->>PS: atualizarStatus(novoStatus)
+  PS->>PS: StatusPedido.podeIrPara(novo)?
+  alt transicao invalida
+    PS-->>GE: 409 TRANSICAO_DE_STATUS_INVALIDA
+  else valida
+    PS->>DB: UPDATE pedido
+    PS->>AU: registrar(STATUS_ALTERADO, antes, depois)
+    PS-->>GE: 200 OK
+  end
+  end

@@ -1,0 +1,163 @@
+erDiagram
+  UNIDADES ||--o{ USUARIOS : "lota"
+  UNIDADES ||--o{ CARDAPIO_UNIDADE : "define"
+  UNIDADES ||--o{ ESTOQUE : "mantem"
+  UNIDADES ||--o{ PEDIDOS : "recebe"
+  UNIDADES ||--o{ CAMPANHAS : "pode segmentar"
+  PRODUTOS ||--o{ CARDAPIO_UNIDADE : "aparece em"
+  PRODUTOS ||--o{ ESTOQUE : "tem saldo em"
+  PRODUTOS ||--o{ ITENS_PEDIDO : "e vendido em"
+  USUARIOS ||--o{ PEDIDOS : "faz"
+  USUARIOS ||--o{ REFRESH_TOKENS : "possui"
+  USUARIOS ||--o{ TOKENS_VERIFICACAO_EMAIL : "recebe"
+  USUARIOS ||--o{ CONSENTIMENTOS : "concede"
+  USUARIOS ||--|| CONTAS_FIDELIDADE : "titular de"
+  USUARIOS ||--o{ LOGS_AUDITORIA : "gera"
+  USUARIOS ||--o{ MOVIMENTACOES_ESTOQUE : "registra"
+  PEDIDOS ||--|{ ITENS_PEDIDO : "contem"
+  PEDIDOS ||--o{ PAGAMENTOS : "tenta"
+  PEDIDOS ||--o{ MOVIMENTACOES_ESTOQUE : "baixa"
+  PEDIDOS ||--o{ MOVIMENTACOES_PONTOS : "credita"
+  ESTOQUE ||--o{ MOVIMENTACOES_ESTOQUE : "historico"
+  CONTAS_FIDELIDADE ||--o{ MOVIMENTACOES_PONTOS : "extrato"
+
+  UNIDADES {
+    uuid id PK
+    varchar nome
+    varchar cidade
+    varchar uf "2 caracteres"
+    varchar tipo_operacao "COMPLETA | REDUZIDA"
+    boolean ativa
+  }
+  USUARIOS {
+    uuid id PK
+    varchar nome
+    varchar email UK
+    varchar senha_hash "BCrypt"
+    varchar perfil "ADMIN|GERENTE|ATENDENTE|COZINHA|CLIENTE"
+    uuid unidade_id FK "nulo para ADMIN e CLIENTE"
+    date data_nascimento
+    boolean email_verificado
+    boolean ativo
+  }
+  PRODUTOS {
+    uuid id PK
+    varchar nome
+    varchar categoria
+    numeric preco_base
+    boolean sazonal
+    boolean ativo "soft delete"
+  }
+  CARDAPIO_UNIDADE {
+    uuid id PK
+    uuid unidade_id FK
+    uuid produto_id FK
+    numeric preco "preco da unidade"
+    boolean disponivel
+  }
+  ESTOQUE {
+    uuid id PK
+    uuid unidade_id FK
+    uuid produto_id FK
+    integer saldo_atual
+    integer saldo_minimo
+    bigint versao "lock otimista"
+  }
+  MOVIMENTACOES_ESTOQUE {
+    uuid id PK
+    uuid estoque_id FK
+    varchar tipo "ENTRADA | SAIDA | AJUSTE"
+    integer quantidade
+    integer saldo_apos
+    uuid pedido_id FK "nulo se nao veio de pedido"
+    uuid usuario_id FK
+  }
+  PEDIDOS {
+    uuid id PK
+    uuid unidade_id FK
+    uuid cliente_id FK "nulo em venda de balcao"
+    varchar canal_pedido "APP|TOTEM|BALCAO|PICKUP|WEB"
+    varchar status "maquina de estados"
+    numeric subtotal
+    numeric desconto
+    numeric total
+  }
+  ITENS_PEDIDO {
+    uuid id PK
+    uuid pedido_id FK
+    uuid produto_id FK
+    varchar nome_produto "congelado"
+    integer quantidade
+    numeric preco_unitario "congelado"
+    numeric subtotal
+  }
+  PAGAMENTOS {
+    uuid id PK
+    uuid pedido_id FK
+    varchar status "PENDENTE|APROVADO|RECUSADO|ESTORNADO"
+    numeric valor
+    varchar metodo "PIX|CARTAO_CREDITO|CARTAO_DEBITO|DINHEIRO"
+    varchar chave_idempotencia UK
+    integer tentativas
+  }
+  CAMPANHAS {
+    uuid id PK
+    varchar tipo "PERCENTUAL|FIXO|PONTOS_EXTRAS"
+    numeric valor
+    uuid unidade_id FK "nulo = rede toda"
+    varchar canal_pedido "nulo = todos"
+    integer idade_minima
+    integer idade_maxima
+    date vigencia_inicio
+    date vigencia_fim
+    boolean ativa
+  }
+  CONTAS_FIDELIDADE {
+    uuid id PK
+    uuid cliente_id FK
+    integer saldo_pontos
+    boolean ativa
+    bigint versao "lock otimista"
+  }
+  MOVIMENTACOES_PONTOS {
+    uuid id PK
+    uuid conta_id FK
+    varchar tipo "ACUMULO | RESGATE"
+    integer pontos
+    integer saldo_apos
+    uuid pedido_id FK
+  }
+  CONSENTIMENTOS {
+    uuid id PK
+    uuid usuario_id FK
+    varchar finalidade "FIDELIDADE|MARKETING|PERFILAMENTO"
+    varchar versao_documento
+    timestamp aceito_em
+    timestamp revogado_em "nulo enquanto vale"
+    varchar ip
+  }
+  LOGS_AUDITORIA {
+    uuid id PK
+    uuid usuario_id FK
+    varchar acao
+    varchar entidade
+    uuid entidade_id
+    text dados_anteriores
+    text dados_novos
+    varchar ip
+  }
+  REFRESH_TOKENS {
+    uuid id PK
+    uuid usuario_id FK
+    varchar token UK
+    timestamp expira_em
+    boolean revogado
+  }
+  TOKENS_VERIFICACAO_EMAIL {
+    uuid id PK
+    uuid usuario_id FK
+    varchar codigo "6 digitos"
+    timestamp expira_em
+    boolean usado
+    integer tentativas_falhas
+  }

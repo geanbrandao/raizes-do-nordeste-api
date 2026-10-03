@@ -1,0 +1,157 @@
+classDiagram
+  direction LR
+
+  class Unidade {
+    +UUID id
+    +String nome
+    +String cidade
+    +String uf
+    +TipoOperacaoUnidade tipoOperacao
+    +boolean ativa
+  }
+  class Usuario {
+    +UUID id
+    +String nome
+    +String email
+    -String senhaHash
+    +Perfil perfil
+    +UUID unidadeId
+    +LocalDate dataNascimento
+    +boolean emailVerificado
+  }
+  class Produto {
+    +UUID id
+    +String nome
+    +String categoria
+    +BigDecimal precoBase
+    +boolean sazonal
+    +boolean ativo
+  }
+  class ItemCardapio {
+    +UUID id
+    +BigDecimal preco
+    +boolean disponivel
+  }
+  class Estoque {
+    +UUID id
+    +int saldoAtual
+    +int saldoMinimo
+    +long versao
+    +boolean abaixoDoMinimo()
+  }
+  class MovimentacaoEstoque {
+    +UUID id
+    +TipoMovimentacaoEstoque tipo
+    +int quantidade
+    +int saldoApos
+    +String motivo
+  }
+  class Pedido {
+    +UUID id
+    +CanalPedido canalPedido
+    +StatusPedido status
+    +BigDecimal subtotal
+    +BigDecimal desconto
+    +BigDecimal total
+    +recalcularTotais()
+  }
+  class ItemPedido {
+    +UUID id
+    +String nomeProduto
+    +int quantidade
+    +BigDecimal precoUnitario
+    +BigDecimal subtotal
+  }
+  class Pagamento {
+    +UUID id
+    +StatusPagamento status
+    +BigDecimal valor
+    +MetodoPagamento metodo
+    +String chaveIdempotencia
+    +int tentativas
+  }
+  class Campanha {
+    +UUID id
+    +TipoCampanha tipo
+    +BigDecimal valor
+    +UUID unidadeId
+    +CanalPedido canalPedido
+    +Integer idadeMinima
+    +Integer idadeMaxima
+    +boolean vigenteEm(LocalDate)
+  }
+  class ContaFidelidade {
+    +UUID id
+    +int saldoPontos
+    +boolean ativa
+    +long versao
+  }
+  class MovimentacaoPontos {
+    +UUID id
+    +TipoMovimentacaoPontos tipo
+    +int pontos
+    +int saldoApos
+  }
+  class Consentimento {
+    +UUID id
+    +String finalidade
+    +String versaoDocumento
+    +LocalDateTime aceitoEm
+    +LocalDateTime revogadoEm
+    +boolean estaAtivo()
+  }
+  class LogAuditoria {
+    +UUID id
+    +String acao
+    +String entidade
+    +String dadosAnteriores
+    +String dadosNovos
+    +String ip
+  }
+
+  class StatusPedido {
+    <<enumeration>>
+    AGUARDANDO_PAGAMENTO
+    PAGO
+    PAGAMENTO_RECUSADO
+    EM_PREPARO
+    PRONTO
+    ENTREGUE
+    CANCELADO
+    +transicoesPermitidas() Set
+    +podeIrPara(StatusPedido) boolean
+  }
+  class Perfil {
+    <<enumeration>>
+    ADMIN
+    GERENTE
+    ATENDENTE
+    COZINHA
+    CLIENTE
+  }
+  class CanalPedido {
+    <<enumeration>>
+    APP
+    TOTEM
+    BALCAO
+    PICKUP
+    WEB
+  }
+
+  Unidade "1" --> "0..*" ItemCardapio : cardapio proprio
+  Produto "1" --> "0..*" ItemCardapio
+  Unidade "1" --> "0..*" Estoque
+  Produto "1" --> "0..*" Estoque
+  Estoque "1" --> "0..*" MovimentacaoEstoque : historico
+  Unidade "1" --> "0..*" Pedido
+  Usuario "0..1" --> "0..*" Pedido : cliente
+  Pedido "1" *-- "1..*" ItemPedido : composicao
+  Pedido "1" --> "0..*" Pagamento : tentativas
+  Usuario "1" --> "0..1" ContaFidelidade
+  ContaFidelidade "1" --> "0..*" MovimentacaoPontos
+  Usuario "1" --> "0..*" Consentimento
+  Usuario "1" --> "0..*" LogAuditoria
+  Unidade "0..1" --> "0..*" Campanha : nulo = rede toda
+  Pedido ..> StatusPedido
+  Pedido ..> CanalPedido
+  Usuario ..> Perfil
