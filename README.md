@@ -10,10 +10,10 @@ dado pessoal exige.
 
 Projeto Multidisciplinar da Trilha Back-End, UNINTER.
 
-| | |
+| Stack | Tamanho |
 |---|---|
 | Kotlin 1.9.25 · Spring Boot 3.5.11 · PostgreSQL 16 | 30 rotas, 38 operações |
-| 196 testes automatizados, 0 falhas | 18 migrations Flyway |
+| Gradle · Flyway · Docker | 18 migrations, 196 testes, 0 falhas |
 
 ---
 
@@ -31,6 +31,7 @@ Projeto Multidisciplinar da Trilha Back-End, UNINTER.
 - [Segurança e LGPD](#segurança-e-lgpd)
 - [Estrutura do projeto](#estrutura-do-projeto)
 - [O que ficou fora do escopo](#o-que-ficou-fora-do-escopo)
+- [Entrega](#entrega)
 - [Documentos](#documentos)
 
 ---
@@ -71,11 +72,11 @@ mesma transação da ação.
 Para subir com Docker, só o Docker é necessário — o build do Java acontece dentro do
 container.
 
-| | |
+| Ferramenta | Para quê |
 |---|---|
-| Docker e Docker Compose | para subir API e banco |
-| Java 17 | só para rodar os testes fora do container |
-| `jq` | opcional, para ler as respostas no terminal |
+| Docker e Docker Compose | Subir API e banco |
+| Java 17 | Só para rodar os testes fora do container |
+| `jq` | Opcional, para ler as respostas no terminal |
 
 Portas usadas: **8080** (API) e **5432** (Postgres).
 
