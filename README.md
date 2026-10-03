@@ -24,7 +24,7 @@ Projeto Multidisciplinar da Trilha Back-End, UNINTER.
 - [Como subir](#como-subir)
 - [Swagger](#swagger)
 - [Como rodar os testes](#como-rodar-os-testes)
-- [Coleção Postman](#coleção-postman)
+- [Coleção de testes](#coleção-de-testes)
 - [Usuários do seed](#usuários-do-seed)
 - [Decisões técnicas](#decisões-técnicas)
 - [Padrão de erro](#padrão-de-erro)
@@ -239,95 +239,105 @@ O roteiro de validação manual, com os fluxos por recurso e 28 cenários de err
 
 ---
 
-## Coleção Postman
+## Coleção de testes
 
-A coleção completa está versionada em [`postman/`](postman/):
+Siga os três passos abaixo na ordem. Não precisa configurar nada antes.
 
-| Arquivo | O que é |
-|---|---|
-| [`raizes-do-nordeste.postman_collection.json`](postman/raizes-do-nordeste.postman_collection.json) | **A coleção executável** — 93 requisições em 12 pastas, 202 asserções |
-| [`raizes-do-nordeste.postman_environment.json`](postman/raizes-do-nordeste.postman_environment.json) | Ambiente local (`baseUrl` e afins) |
-| [`openapi.json`](postman/openapi.json) | Contrato OpenAPI 3.1, para **ler**. Não executa nada |
+### Passo 1 — Suba a API com o banco limpo
 
-### Como usar — Postman
+```bash
+docker compose down -v && docker compose up -d
+```
 
-1. Suba a API com `docker compose down -v && docker compose up --build`
-2. **Import** → arraste os dois arquivos
-3. Abra o **Collection Runner**, selecione a coleção e clique em **Run**
+O `-v` apaga o banco anterior. **Este passo não é opcional:** as pastas 2, 5 e 6 da coleção
+alteram cadastro, preço e estoque de propósito, e sobre um banco já usado as contas não
+fecham.
 
-### Como usar — Insomnia
+Espere a API responder antes de seguir:
 
-1. Suba a API com `docker compose down -v && docker compose up --build`
-2. **Import** → selecione `raizes-do-nordeste.postman_collection.json`
-3. Clique no **nome da coleção** e escolha **Run Collection**
-4. Na aba **Request Order**, deixe a ordem como veio e clique em **Run**
+```bash
+curl -s localhost:8080/actuator/health
+```
 
-Os resultados aparecem na aba **Console**, no painel da direita.
+Esperado: `{"status":"UP"}`.
 
-### Cuidado para não rodar o arquivo errado
+### Passo 2 — Importe **um** arquivo
 
-Se você importar os dois arquivos, aparecem duas coisas parecidas na barra lateral:
+```
+postman/raizes-do-nordeste.postman_collection.json
+```
 
-| Na barra lateral | O que é |
-|---|---|
-| **Raizes do Nordeste — TESTES (rode esta)** | A coleção. Pastas numeradas de `0. Setup` a `11. Erros` |
-| **API Raizes do Nordeste 0.1.0** | O documento de Design, vindo do `openapi.json` |
+Esse arquivo sozinho já traz tudo: as requisições, os testes e as variáveis preenchidas.
+**Não importe mais nada agora** — os outros arquivos da pasta são opcionais e só atrapalham
+neste momento (veja [Os outros arquivos](#os-outros-arquivos)).
 
-**O Runner só funciona na primeira.** O documento de Design não tem scripts, não tem ordem
-de execução e não faz login: rodar o Runner nele devolve `Results 0/0` e **401 em quase
-todas** as requisições — parece que a API está quebrada, mas é só a coleção errada.
+No Postman ou no Insomnia, o caminho é o mesmo: **Import** → selecione o arquivo.
 
-Se estiver em dúvida sobre qual é qual: a certa tem pastas numeradas e requisições com nomes
-como `T06 — Criar pedido (201)`.
+Depois de importar, confira que apareceu **Raizes do Nordeste — TESTES (rode esta)**, com
+pastas numeradas de `0. Setup` a `11. Erros`.
 
-As pastas estão na ordem de execução, e cada requisição guarda sozinha o que a próxima
-precisa — tokens, ids de pedido, de pagamento e de consentimento. **Não é preciso copiar e
-colar nada.**
+### Passo 3 — Rode
 
-Cada requisição carrega testes automáticos: rodar a coleção inteira executa **202
-asserções**. Se quiser rodar pela linha de comando, sem abrir o Postman:
+**No Postman:** selecione a coleção → **Run** → **Run Raizes do Nordeste**.
+
+**No Insomnia:** clique no **nome da coleção** → **Run Collection** → na aba
+**Request Order** deixe a ordem como está → **Run**. Os resultados saem no painel da direita.
+
+**Sem abrir programa nenhum**, direto no terminal:
 
 ```bash
 npx newman run postman/raizes-do-nordeste.postman_collection.json
 ```
 
-### As 12 pastas
+### O que esperar
 
-`0. Setup` · `1. Auth` · `2. Usuários` · `3. Unidades` · `4. Produtos` · `5. Cardápio` ·
-`6. Estoque` · `7. Pedidos` · `8. Pagamento` · `9. Fidelidade e LGPD` · `10. Auditoria` ·
-`11. Erros`
+| | |
+|---|---|
+| Requisições | **93** |
+| Asserções | **202** |
+| Falhas | **0** |
+| Duração | poucos segundos |
 
-A pasta **11. Erros** tem os 29 cenários negativos, cada um conferindo o status **e** o
-código de erro do envelope.
+As pastas já estão na ordem de execução e cada requisição guarda sozinha o que a próxima
+precisa — os quatro tokens, o id do pedido, o do pagamento, o do consentimento. **Você não
+copia nem cola nada.**
 
-> **Rode contra um banco recém-criado.** As pastas 2, 5 e 6 alteram cadastro, preço e
-> estoque de propósito. Numa segunda rodada sobre o mesmo banco, 6 asserções falham por
-> estado acumulado — a própria descrição da coleção lista quais e por quê.
+| Pasta | |
+|---|---|
+| `0. Setup` | Faz os quatro logins e guarda os tokens. **Sem ela, tudo depois dá 401** |
+| `1. Auth` a `10. Auditoria` | Um recurso por pasta, no caminho feliz |
+| `11. Erros` | 30 cenários negativos, cada um conferindo o status **e** o código do erro |
 
-### Não usa Postman?
+### Se algo não bater
 
-O arquivo está no formato **Postman Collection v2.1**, que é o que a maioria dos clientes
-importa. O que muda de um para outro não são as requisições, e sim os *scripts* — são eles
-que encadeiam os tokens e os ids sozinhos.
+| Sintoma | Causa | O que fazer |
+|---|---|---|
+| `Results 0/0` e 401 em quase tudo | Você está rodando o **documento de Design**, não a coleção | Rode em **Raizes do Nordeste — TESTES (rode esta)**. A errada se chama `API Raizes do Nordeste 0.1.0` e tem requisições soltas, sem pastas numeradas |
+| 6 asserções falham, sempre as mesmas | Banco reaproveitado | Volte ao Passo 1 |
+| Tudo dá 401 logo no começo | A pasta `0. Setup` não rodou, ou rodou depois das outras | Rode a coleção inteira, de cima para baixo, sem desmarcar requisições |
+| Erro de conexão | A API não está no ar | `curl -s localhost:8080/actuator/health` |
+| Os tokens não se preenchem sozinhos | Seu cliente não executa os scripts | Rode o login da pasta `0. Setup`, copie o `accessToken` e cole na variável `tokenCliente`. Os ids do seed já vêm prontos |
+
+### Os outros arquivos
+
+Não são necessários para rodar a coleção. Importe só se quiser:
+
+| Arquivo | Para quê |
+|---|---|
+| [`raizes-do-nordeste.postman_environment.json`](postman/raizes-do-nordeste.postman_environment.json) | Ambiente separado, caso prefira editar `baseUrl` fora da coleção. A coleção já funciona sem ele |
+| [`openapi.json`](postman/openapi.json) | O contrato em OpenAPI 3.1, para **ler** schemas e tipos. Vira um documento de Design, **não executa testes** — é esse que causa o `Results 0/0` da tabela acima |
+
+### Clientes
+
+O arquivo está no formato **Postman Collection v2.1**. O que varia entre clientes não são as
+requisições, são os *scripts* — que é o que encadeia tokens e ids.
 
 | Cliente | Situação |
 |---|---|
-| **Postman** | Testado aqui: 93 requisições, 202 asserções, 0 falhas |
-| **Newman** (linha de comando) | Testado aqui, mesmo resultado. Não precisa de interface gráfica |
-| **Insomnia 13.3** | Importa a coleção com as 12 pastas, e o `openapi.json` passa no *Default OAS Ruleset* sem erro nem aviso. A execução dos *after-response scripts* vindos do Postman é documentada pelo Kong |
-| **Bruno, Hoppscotch, Thunder Client e outros** | Importam as requisições e as pastas. Os scripts podem não rodar |
-
-Se os scripts não rodarem no seu cliente, nada quebra de forma silenciosa: o que se perde é
-o **preenchimento automático**. Rode o login da pasta `0. Setup`, copie o `accessToken` da
-resposta e cole na variável `tokenCliente` (e equivalentes). Os ids do seed já vêm
-preenchidos e não dependem de script.
-
-E existem dois caminhos que não dependem de cliente nenhum:
-
-- **[`postman/openapi.json`](postman/openapi.json)** — o contrato em OpenAPI 3.1, com os 43
-  schemas. Qualquer ferramenta de API importa, inclusive as que não leem formato Postman.
-- **[VALIDACAO.md](VALIDACAO.md)** — o mesmo roteiro em `curl` puro, que roda em qualquer
-  terminal sem instalar nada.
+| **Postman** | Verificado: 93 requisições, 202 asserções, 0 falhas |
+| **Newman** (terminal) | Verificado, mesmo resultado |
+| **Insomnia 13.3** | Importa as 12 pastas; o `openapi.json` passa no *Default OAS Ruleset* sem erro nem aviso |
+| **Bruno, Hoppscotch, Thunder Client** | Importam requisições e pastas; os scripts podem não rodar — veja a última linha da tabela de problemas |
 
 ---
 
@@ -566,7 +576,7 @@ Dívida consciente, registrada para não parecer esquecimento:
 | Swagger UI | `http://localhost:8080/swagger-ui.html` com a API no ar — ver [Como subir](#como-subir) |
 | OpenAPI | `http://localhost:8080/v3/api-docs` |
 | Roteiro de validação | [VALIDACAO.md](VALIDACAO.md) |
-| Coleção Postman | [`postman/`](postman/) — 93 requisições, 202 asserções |
+| Coleção de testes | [`postman/`](postman/) — 93 requisições, 202 asserções |
 | Testes automatizados | `./gradlew test` — 196 testes |
 
 ---
