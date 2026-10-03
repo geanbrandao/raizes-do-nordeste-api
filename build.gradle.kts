@@ -39,7 +39,8 @@ dependencies {
 	// Documentacao da API
 	implementation("org.springdoc:springdoc-openapi-starter-webmvc-ui:2.8.6")
 
-	// Rate limiting (RNF08 - desempenho em horario de pico)
+	// Rate limiting (RNF08): dependencias declaradas, filtro ainda nao ligado.
+	// Ver "fora do escopo" no README antes de assumir que o limite esta valendo.
 	implementation("com.bucket4j:bucket4j-core:8.10.1")
 	implementation("com.github.ben-manes.caffeine:caffeine")
 

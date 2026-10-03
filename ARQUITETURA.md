@@ -3,7 +3,7 @@
 Como o código está organizado, por quê, e como dá para conferir que a organização se
 sustenta. Esta é a fonte da seção de arquitetura do README e do PDF da entrega.
 
-**Tamanho:** 94 arquivos Kotlin, 8.023 linhas, 9 pacotes.
+**Tamanho:** 95 arquivos Kotlin, 8.167 linhas, 9 pacotes.
 
 ---
 
