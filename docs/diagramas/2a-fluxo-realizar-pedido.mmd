@@ -1,0 +1,36 @@
+flowchart TB
+  classDef ok fill:#e8f5e9,stroke:#2e7d32,color:#000
+  classDef erro fill:#ffebee,stroke:#c62828,color:#000
+  classDef passo fill:#eaf1fb,stroke:#3b6fb5,color:#000
+  classDef dec fill:#fff8e1,stroke:#f9a825,color:#000
+  classDef cx fill:#fcfcfd,stroke:#ccc,color:#555
+
+  INI([Cliente monta o pedido]):::passo
+  A1["POST /pedidos<br/>unidade, canal e itens"]:::passo
+  D1{"token valido e<br/>corpo no contrato?"}:::dec
+  D4{"itens estao no cardapio<br/>desta unidade?"}:::dec
+  D5{"ha saldo para<br/>todos os itens?"}:::dec
+  A2["Debita o estoque e grava a movimentacao"]:::passo
+  A3["Congela o preco do cardapio em cada item,<br/>aplica a campanha e calcula o total"]:::passo
+  A5["Grava o pedido em AGUARDANDO_PAGAMENTO<br/>e registra PEDIDO_CRIADO na trilha,<br/>tudo na mesma transacao"]:::passo
+  R1(["201 Created<br/>total calculado no servidor"]):::ok
+
+  subgraph EXC["Excecoes"]
+    direction TB
+    E1["401 NAO_AUTENTICADO<br/>sem token"]:::erro
+    E2["400 REQUISICAO_INVALIDA<br/>canalPedido ausente"]:::erro
+    E3["422 VALIDACAO<br/>quantidade menor ou igual a zero"]:::erro
+    E4["422 PRODUTO_FORA_DO_CARDAPIO"]:::erro
+    E5["409 ESTOQUE_INSUFICIENTE<br/>traz a lista do que faltou<br/>e nenhum pedido e criado"]:::erro
+  end
+  class EXC cx
+
+  INI --> A1 --> D1
+  D1 -- "sem token" --> E1
+  D1 -- "falta canalPedido" --> E2
+  D1 -- "quantidade invalida" --> E3
+  D1 -- sim --> D4
+  D4 -- "item fora do cardapio" --> E4
+  D4 -- sim --> D5
+  D5 -- "faltou saldo" --> E5
+  D5 -- sim --> A2 --> A3 --> A5 --> R1

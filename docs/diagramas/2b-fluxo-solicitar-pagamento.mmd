@@ -1,0 +1,37 @@
+flowchart TB
+  classDef ok fill:#e8f5e9,stroke:#2e7d32,color:#000
+  classDef erro fill:#ffebee,stroke:#c62828,color:#000
+  classDef alerta fill:#fff4e5,stroke:#e07b00,color:#000
+  classDef passo fill:#eaf1fb,stroke:#3b6fb5,color:#000
+  classDef dec fill:#fff8e1,stroke:#f9a825,color:#000
+  classDef cx fill:#fcfcfd,stroke:#ccc,color:#555
+
+  INI(["Pedido em AGUARDANDO_PAGAMENTO"]):::passo
+  B1["POST /pedidos/{id}/pagamentos<br/>metodo e token"]:::passo
+  D6{"pedido ja esta pago<br/>ou a chave de idempotencia<br/>ja foi usada?"}:::dec
+  B2["Chama o gateway de pagamento"]:::passo
+  D8{"resposta do gateway"}:::dec
+  C1["pedido = PAGO"]:::passo
+  D9{"consentimento<br/>FIDELIDADE ativo?"}:::dec
+  C4["Credita os pontos"]:::passo
+  C5["Nao pontua, e tambem<br/>nao falha o pagamento"]:::passo
+  R3(["201 APROVADO"]):::ok
+
+  subgraph DESV["Desfechos que nao sao o caminho feliz"]
+    direction TB
+    E6["409 PEDIDO_JA_PAGO<br/>pedido ja quitado"]:::erro
+    R2["201 com o mesmo pagamento<br/>reenvio nao cobra duas vezes"]:::ok
+    C2["201 RECUSADO<br/>pedido = PAGAMENTO_RECUSADO<br/>da para tentar outro meio"]:::alerta
+    C3["201 PENDENTE<br/>o pedido NAO avanca<br/>aguarda o callback assinado"]:::alerta
+  end
+  class DESV cx
+
+  INI --> B1 --> D6
+  D6 -- "ja pago" --> E6
+  D6 -- "mesma chave" --> R2
+  D6 -- "primeira tentativa" --> B2 --> D8
+  D8 -- "token tok_recusa" --> C2
+  D8 -- "token tok_timeout" --> C3
+  D8 -- aprovado --> C1 --> D9
+  D9 -- sim --> C4 --> R3
+  D9 -- nao --> C5 --> R3
