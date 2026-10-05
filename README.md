@@ -591,6 +591,29 @@ Dívida consciente, registrada para não parecer esquecimento:
 
 ---
 
+## Uso de ferramentas de IA
+
+Este projeto utilizou ferramenta de inteligência artificial generativa (Claude, da Anthropic)
+em duas frentes, declaradas aqui para que o leitor saiba como a documentação foi produzida.
+
+**Documentação.** Os arquivos em Markdown deste repositório — este README, o
+[VALIDACAO.md](VALIDACAO.md), o [ARQUITETURA.md](ARQUITETURA.md) e o
+[DECISOES-SEGURANCA.md](DECISOES-SEGURANCA.md) — foram redigidos com apoio da ferramenta, a
+partir da leitura do código-fonte, da consulta ao esquema do banco em execução e da medição
+das dependências entre pacotes. Os diagramas em [docs/diagramas](docs/diagramas) seguiram o
+mesmo caminho: o diagrama entidade-relacionamento, por exemplo, foi gerado a partir das
+chaves estrangeiras extraídas do banco, e não de descrição manual.
+
+**Conferência de testes.** A ferramenta foi usada para verificar quais cenários exigidos
+possuíam requisição correspondente na coleção, e para executar a coleção completa e o
+conjunto de testes automatizados, confirmando os números citados neste documento.
+
+Todo o conteúdo gerado foi revisado. Os valores numéricos aqui apresentados — contagens de
+rotas, operações, testes e asserções — foram conferidos contra a execução real antes de
+serem registrados, e as divergências encontradas nessa conferência foram corrigidas.
+
+---
+
 ## Licença
 
 Projeto acadêmico. A rede Raízes do Nordeste é fictícia.
