@@ -20,3 +20,6 @@ out/
 
 # macOS
 .DS_Store
+
+# Documento academico: versiona-se o PDF, nao o editavel
+*.docx

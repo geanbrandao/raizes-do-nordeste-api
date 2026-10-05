@@ -575,6 +575,7 @@ Dívida consciente, registrada para não parecer esquecimento:
 | Repositório | https://github.com/geanbrandao/raizes-do-nordeste-api |
 | Swagger UI | `http://localhost:8080/swagger-ui.html` com a API no ar — ver [Como subir](#como-subir) |
 | OpenAPI | `http://localhost:8080/v3/api-docs` |
+| Documento acadêmico | [docs/4836754_Projeto_Back_End.pdf](docs/4836754_Projeto_Back_End.pdf) |
 | Roteiro de validação | [VALIDACAO.md](VALIDACAO.md) |
 | Coleção de testes | [`postman/`](postman/) — 93 requisições, 202 asserções |
 | Testes automatizados | `./gradlew test` — 196 testes |
